@@ -6,6 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -96,4 +97,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    # provider keys (OPENAI_API_KEY, GEMINI_API_KEY, ...) are read by litellm straight
+    # from os.environ, so push .env in there too, not just into Settings
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
     return Settings()
