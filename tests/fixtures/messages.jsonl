@@ -1,0 +1,29 @@
+{"text": "23 eur groceries at rimi today", "intent": "ADD", "txns": [{"amount": 23, "currency": "EUR", "category": "Groceries", "merchant": "Rimi", "date": "today"}]}
+{"text": "coffee w/ arjun 6.50 and then metro 2", "intent": "ADD", "txns": [{"amount": 6.5, "currency": "EUR", "category": "Cafes", "tags": ["arjun"]}, {"amount": 2, "currency": "EUR", "category": "Transport"}]}
+{"text": "chiya 30 rupees aja", "intent": "ADD", "txns": [{"amount": 30, "currency": "NPR", "category": "Cafes", "date": "today"}]}
+{"text": "5 euro parking and 12 euro sandwich", "intent": "ADD", "txns": [{"amount": 5, "currency": "EUR", "category": "Transport"}, {"amount": 12, "currency": "EUR", "category": "Restaurants"}]}
+{"text": "lunch 12.5 yesterday", "intent": "ADD", "txns": [{"amount": 12.5, "currency": "EUR", "category": "Restaurants", "date": "yesterday"}]}
+{"text": "€4.20 cappuccino", "intent": "ADD", "txns": [{"amount": 4.2, "currency": "EUR", "category": "Cafes"}]}
+{"text": "bolt to airport 18,40", "intent": "ADD", "txns": [{"amount": 18.4, "currency": "EUR", "category": "Transport", "merchant": "Bolt"}]}
+{"text": "rent 650", "intent": "ADD", "txns": [{"amount": 650, "currency": "EUR", "category": "Rent"}]}
+{"text": "spotify 11.99", "intent": "ADD", "txns": [{"amount": 11.99, "currency": "EUR", "category": "Subscriptions", "merchant": "Spotify"}]}
+{"text": "got salary 2500", "intent": "ADD", "txns": [{"amount": 2500, "currency": "EUR", "direction": "income", "category": "Salary"}]}
+{"text": "rs 300 momo with sita hijo", "intent": "ADD", "txns": [{"amount": 300, "currency": "NPR", "category": "Restaurants", "tags": ["sita"], "date": "yesterday"}]}
+{"text": "2 coffees 7 eur", "intent": "ADD", "txns": [{"amount": 7, "currency": "EUR", "category": "Cafes"}]}
+{"text": "$15 netflix", "intent": "ADD", "txns": [{"amount": 15, "currency": "USD", "category": "Subscriptions"}]}
+{"text": "pharmacy 8.90 at apteek", "intent": "ADD", "txns": [{"amount": 8.9, "currency": "EUR", "category": "Health"}]}
+{"text": "dinner 1.2k rs", "intent": "ADD", "txns": [{"amount": 1200, "currency": "NPR", "category": "Restaurants"}]}
+{"text": "40 eur passport photos and printouts", "intent": "ADD", "txns": [{"amount": 40, "currency": "EUR"}]}
+{"text": "sorry it was 29", "intent": "EDIT"}
+{"text": "actually make it groceries", "intent": "EDIT"}
+{"text": "delete the coffee one", "intent": "DELETE"}
+{"text": "remove last", "intent": "DELETE"}
+{"text": "how much grocery this month?", "intent": "QUERY", "plan": {"kind": "total", "period": "this_month", "category": "Groceries"}}
+{"text": "kati kharcha bhayo yo hapta grocery ma?", "intent": "QUERY", "plan": {"kind": "total", "period": "this_week", "category": "Groceries"}}
+{"text": "top merchants last month", "intent": "QUERY", "plan": {"kind": "top_merchants", "period": "last_month"}}
+{"text": "average weekday coffee spend", "intent": "QUERY", "plan": {"kind": "average", "category": "Cafes", "weekdays_only": true}}
+{"text": "how much did i spend with arjun this year", "intent": "QUERY", "plan": {"kind": "total", "period": "this_year", "tag": "arjun"}}
+{"text": "breakdown by category last week", "intent": "QUERY", "plan": {"kind": "breakdown", "period": "last_week", "group_by": "category"}}
+{"text": "help", "intent": "HELP"}
+{"text": "thanks!", "intent": "CHITCHAT"}
+{"text": "good morning", "intent": "CHITCHAT"}
