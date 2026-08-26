@@ -34,8 +34,12 @@ def run_migrations_online() -> None:
     connectable = config.attributes.get("connection")
     if connectable is None:
         url = _url()
-        engine = make_engine(url) if url.startswith("sqlite") else engine_from_config(
-            {"sqlalchemy.url": url}, prefix="sqlalchemy.", poolclass=pool.NullPool
+        engine = (
+            make_engine(url)
+            if url.startswith("sqlite")
+            else engine_from_config(
+                {"sqlalchemy.url": url}, prefix="sqlalchemy.", poolclass=pool.NullPool
+            )
         )
         with engine.connect() as connection:
             _run(connection)
