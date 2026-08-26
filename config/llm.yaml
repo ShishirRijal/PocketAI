@@ -1,0 +1,56 @@
+# LLM routing. Read at boot; `pocket` reloads it on SIGHUP / POST /admin/reload.
+#
+# Models without credentials in the environment are skipped automatically, so
+# the same file works with only a Gemini key, only an OpenAI key, or no keys at
+# all (then everything goes to the offline `rules/v1` parser).
+
+router:
+  fast:          # Stage A intent classifier: cheap, fast, disposable
+    primary: gemini/gemini-2.5-flash
+    fallbacks: [xai/grok-4-fast, openai/gpt-4o-mini, rules/v1]
+  extractor:     # Stage B/C: structured output, more careful
+    primary: gemini/gemini-2.5-flash
+    fallbacks: [openai/gpt-4o-mini, xai/grok-4, rules/v1]
+  resolver:      # edit / delete target resolution
+    primary: gemini/gemini-2.5-flash
+    fallbacks: [openai/gpt-4o-mini, rules/v1]
+  query:         # Stage B''': NL -> query plan
+    primary: gemini/gemini-2.5-pro
+    fallbacks: [gemini/gemini-2.5-flash, openai/gpt-4o-mini, rules/v1]
+  summarizer:    # digests
+    primary: gemini/gemini-2.5-flash
+    fallbacks: [openai/gpt-4o-mini]
+  vision:        # receipt photos
+    primary: gemini/gemini-2.5-flash
+    fallbacks: [openai/gpt-4o-mini]
+  local:         # phase 3: ollama on the same box (set OLLAMA_API_BASE)
+    primary: ollama/qwen2.5:3b-instruct
+    fallbacks: [rules/v1]
+
+# stage -> chain
+purposes:
+  intent: fast
+  extract: extractor
+  categorize: extractor
+  edit: resolver
+  delete: resolver
+  query: query
+  summarize: summarizer
+  receipt: vision
+
+# free-tier limits; we skip a model once it's within 5% of these
+quotas:
+  gemini/gemini-2.5-flash: {rpm: 10, rpd: 250}
+  gemini/gemini-2.5-pro: {rpm: 5, rpd: 100}
+  xai/grok-4-fast: {rpm: 60}
+
+transcription:
+  model: openai/gpt-4o-mini-transcribe
+  fallbacks: [openai/whisper-1]
+
+fallback_triggers:  # documentation only, these are hardcoded in llm/router.py
+  - rate_limit
+  - context_length
+  - server_error
+  - timeout
+  - schema_parse_fail
