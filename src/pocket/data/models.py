@@ -183,3 +183,16 @@ class PendingAction(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class SessionRow(Base):
+    """Session state when Redis isn't configured. Same JSON shape as the Redis
+    store, so undo survives a restart either way."""
+
+    __tablename__ = "sessions"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    data: Mapped[dict[str, Any]] = mapped_column(JSON)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
