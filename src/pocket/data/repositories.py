@@ -543,5 +543,6 @@ class PendingRepo:
         return p
 
     def clear(self, user_id: int) -> None:
-        self.s.execute(PendingAction.__table__.delete().where(PendingAction.user_id == user_id))
+        for p in self.s.scalars(select(PendingAction).where(PendingAction.user_id == user_id)):
+            self.s.delete(p)
         self.s.flush()
