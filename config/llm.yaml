@@ -6,22 +6,23 @@
 
 router:
   fast:          # Stage A intent classifier: cheap, fast, disposable
-    primary: gemini/gemini-2.5-flash
+    primary: gemini/gemini-flash-lite-latest
     fallbacks: [xai/grok-4-fast, openai/gpt-4o-mini, rules/v1]
   extractor:     # Stage B/C: structured output, more careful
-    primary: gemini/gemini-2.5-flash
-    fallbacks: [openai/gpt-4o-mini, xai/grok-4, rules/v1]
+    primary: gemini/gemini-3.8-flash
+    fallbacks: [gemini/gemini-flash-lite-latest, openai/gpt-4o-mini, xai/grok-4, rules/v1]
   resolver:      # edit / delete target resolution
-    primary: gemini/gemini-2.5-flash
+    primary: gemini/gemini-3.8-flash
     fallbacks: [openai/gpt-4o-mini, rules/v1]
-  query:         # Stage B''': NL -> query plan
-    primary: gemini/gemini-2.5-pro
-    fallbacks: [gemini/gemini-2.5-flash, openai/gpt-4o-mini, rules/v1]
+  query:         # Stage B''': NL -> query plan. The doc wanted 2.5-pro, but pro has no
+                 # free quota on new keys (429) and 2.5-* is closed to new users (404).
+    primary: gemini/gemini-3.8-flash
+    fallbacks: [openai/gpt-4o-mini, gemini/gemini-flash-lite-latest, rules/v1]
   summarizer:    # digests
-    primary: gemini/gemini-2.5-flash
-    fallbacks: [openai/gpt-4o-mini]
+    primary: gemini/gemini-3.8-flash
+    fallbacks: [openai/gpt-4o-mini, gemini/gemini-flash-lite-latest]
   vision:        # receipt photos
-    primary: gemini/gemini-2.5-flash
+    primary: gemini/gemini-3.8-flash
     fallbacks: [openai/gpt-4o-mini]
   local:         # phase 3: ollama on the same box (set OLLAMA_API_BASE)
     primary: ollama/qwen2.5:3b-instruct
@@ -39,9 +40,9 @@ purposes:
   receipt: vision
 
 # free-tier limits; we skip a model once it's within 5% of these
-quotas:
-  gemini/gemini-2.5-flash: {rpm: 10, rpd: 250}
-  gemini/gemini-2.5-pro: {rpm: 5, rpd: 100}
+quotas:  # rough free-tier numbers, tune from /admin/quota once you see real 429s
+  gemini/gemini-3.8-flash: {rpm: 10, rpd: 250}
+  gemini/gemini-flash-lite-latest: {rpm: 15, rpd: 1000}
   xai/grok-4-fast: {rpm: 60}
 
 transcription:

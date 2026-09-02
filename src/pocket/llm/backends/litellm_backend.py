@@ -15,6 +15,7 @@ from pocket.llm.router import (
     BackendResponse,
     ContextTooLong,
     LLMError,
+    ModelNotFound,
     PromptBundle,
     RateLimited,
     SchemaParseError,
@@ -41,6 +42,11 @@ def inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
         return node
 
     return walk(schema)
+
+
+def _is_gemini3(model: str) -> bool:
+    name = model.split("/", 1)[-1]
+    return name.startswith(("gemini-3", "gemini-flash", "gemini-pro"))
 
 
 class LiteLLMBackend:
@@ -97,14 +103,18 @@ class LiteLLMBackend:
                     + json.dumps(inline_refs(schema.model_json_schema())),
                 },
             ]
+        kwargs: dict[str, Any] = {}
+        if not _is_gemini3(model):
+            # gemini 3+ deprecates sampling params and wants guidance in the prompt
+            kwargs["temperature"] = 0
         try:
             resp = await self._litellm.acompletion(
                 model=model,
                 messages=messages,
                 response_format=rf,
-                temperature=0,
                 timeout=timeout,
                 num_retries=0,
+                **kwargs,
             )
         except exc.RateLimitError as e:
             raise RateLimited(str(e)[:500]) from e
@@ -116,6 +126,8 @@ class LiteLLMBackend:
             raise AuthError(str(e)[:500]) from e
         except exc.JSONSchemaValidationError as e:
             raise SchemaParseError(str(e)[:500]) from e
+        except exc.NotFoundError as e:
+            raise ModelNotFound(str(e)[:500]) from e
         except (
             exc.InternalServerError,
             exc.ServiceUnavailableError,

@@ -65,6 +65,12 @@ class AuthError(LLMError):
     kind = "auth"
 
 
+class ModelNotFound(LLMError):
+    """Retired or misspelled model. Config problem, not transient."""
+
+    kind = "not_found"
+
+
 class LLMUnavailable(Exception):
     """Every model in the chain failed."""
 
@@ -312,6 +318,10 @@ class LLMRouter:
                 errors.append((model, f"{err.kind}: {err}"))
                 if isinstance(err, RateLimited):
                     self.quota.mark_exhausted(model)
+                elif isinstance(err, (ModelNotFound, AuthError)):
+                    # won't fix itself in a minute; stop trying for an hour
+                    log.error("model %s unusable (%s), benching it for 1h", model, err.kind)
+                    self.quota.mark_exhausted(model, seconds=3600)
                 if not isinstance(err, SchemaParseError) or try_no == 1:
                     break
                 log.info("schema parse failed on %s (%s), retrying once", model, err)
