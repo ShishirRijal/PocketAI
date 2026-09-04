@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pocket</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232a78d6'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='system-ui'>P</text></svg>">
+  <link rel="stylesheet" href="/app/static/app.css">
+  <script>
+    // apply the saved theme before first paint
+    try { const t = localStorage.getItem("pocket.theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">P</span> Pocket</div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="transactions" aria-selected="false">Transactions</button>
+      <button role="tab" data-tab="system" aria-selected="false">System</button>
+    </nav>
+    <div class="topbar-right">
+      <button class="icon-btn" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme">◐</button>
+      <a class="btn ghost small" href="/app/logout">Sign out</a>
+    </div>
+  </header>
+
+  <section class="filters" aria-label="Filters">
+    <div class="filter-row">
+      <label class="field compact">
+        <span>Period</span>
+        <select id="f-period">
+          <option value="today">Today</option>
+          <option value="this_week">This week</option>
+          <option value="this_month" selected>This month</option>
+          <option value="last_month">Last month</option>
+          <option value="last_7_days">Last 7 days</option>
+          <option value="last_30_days">Last 30 days</option>
+          <option value="last_90_days">Last 90 days</option>
+          <option value="this_year">This year</option>
+          <option value="last_year">Last year</option>
+          <option value="all_time">All time</option>
+          <option value="custom">Custom range…</option>
+        </select>
+      </label>
+      <div class="custom-range" id="custom-range" hidden>
+        <label class="field compact"><span>From</span><input type="date" id="f-start"></label>
+        <label class="field compact"><span>To</span><input type="date" id="f-end"></label>
+      </div>
+      <div class="segmented" role="radiogroup" aria-label="Direction" id="f-direction">
+        <button role="radio" data-value="expense" aria-checked="true">Spending</button>
+        <button role="radio" data-value="income" aria-checked="false">Income</button>
+        <button role="radio" data-value="all" aria-checked="false">All</button>
+      </div>
+      <label class="field compact grow">
+        <span>Search</span>
+        <input type="search" id="f-q" placeholder="merchant, note, tag, category…" autocomplete="off">
+      </label>
+      <label class="field compact"><span>Category</span><select id="f-category"><option value="">All categories</option></select></label>
+      <label class="field compact"><span>Merchant</span><select id="f-merchant"><option value="">All merchants</option></select></label>
+      <label class="field compact"><span>Tag</span><select id="f-tag"><option value="">All tags</option></select></label>
+      <button class="btn ghost" id="f-more" aria-expanded="false">More</button>
+      <button class="btn ghost" id="f-clear">Clear</button>
+    </div>
+    <div class="filter-row more" id="more-filters" hidden>
+      <label class="field compact"><span>Min amount</span><input type="number" id="f-min" min="0" step="0.01" inputmode="decimal"></label>
+      <label class="field compact"><span>Max amount</span><input type="number" id="f-max" min="0" step="0.01" inputmode="decimal"></label>
+      <label class="field compact"><span>Currency</span><select id="f-currency"><option value="">Any</option></select></label>
+      <label class="check"><input type="checkbox" id="f-low"> Low confidence only</label>
+      <label class="check"><input type="checkbox" id="f-deleted"> Deleted</label>
+    </div>
+    <div class="chips" id="active-chips" aria-live="polite"></div>
+  </section>
+
+  <main>
+    <section id="tab-overview" class="tab-panel">
+      <div class="tiles" id="tiles"></div>
+      <div class="grid">
+        <article class="card span-2" data-chart="series">
+          <header><h2 id="series-title">Spending over time</h2><button class="link table-toggle">Table</button></header>
+          <div class="chart" id="chart-series"></div>
+        </article>
+        <article class="card" data-chart="category">
+          <header><h2>By category</h2><button class="link table-toggle">Table</button></header>
+          <div class="chart" id="chart-category"></div>
+        </article>
+        <article class="card" data-chart="merchant">
+          <header><h2>Top merchants</h2><button class="link table-toggle">Table</button></header>
+          <div class="chart" id="chart-merchant"></div>
+        </article>
+        <article class="card" data-chart="weekday">
+          <header><h2>By weekday</h2><button class="link table-toggle">Table</button></header>
+          <div class="chart" id="chart-weekday"></div>
+        </article>
+        <article class="card" data-chart="tags">
+          <header><h2>Tags</h2></header>
+          <div class="tag-cloud" id="chart-tags"></div>
+        </article>
+        <article class="card span-2" data-chart="months">
+          <header><h2>Last 12 months</h2><button class="link table-toggle">Table</button></header>
+          <div class="chart" id="chart-months"></div>
+        </article>
+        <article class="card" data-chart="largest">
+          <header><h2>Largest</h2></header>
+          <ol class="largest" id="chart-largest"></ol>
+        </article>
+      </div>
+    </section>
+
+    <section id="tab-transactions" class="tab-panel" hidden>
+      <div class="card">
+        <header class="table-head">
+          <h2 id="txn-summary">Transactions</h2>
+          <a class="btn ghost" id="export-csv" href="#" download>Export CSV</a>
+        </header>
+        <div class="table-wrap">
+          <table class="txn-table" id="txn-table">
+            <thead>
+              <tr>
+                <th data-sort="occurred_at" aria-sort="descending"><button>Date</button></th>
+                <th data-sort="amount" class="num"><button>Amount</button></th>
+                <th data-sort="category"><button>Category</button></th>
+                <th data-sort="merchant"><button>Merchant</button></th>
+                <th>Tags</th>
+                <th>Note</th>
+                <th class="num" title="Parser confidence">Conf.</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <footer class="pager">
+          <button class="btn ghost" id="pg-prev">‹ Prev</button>
+          <span id="pg-info" class="muted"></span>
+          <button class="btn ghost" id="pg-next">Next ›</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="tab-system" class="tab-panel" hidden>
+      <div class="tiles" id="sys-tiles"></div>
+      <div class="grid">
+        <article class="card span-2">
+          <header><h2>LLM spend per day (30 days)</h2></header>
+          <div class="chart" id="chart-cost"></div>
+        </article>
+        <article class="card">
+          <header><h2>Model chains</h2></header>
+          <div id="sys-chains"></div>
+        </article>
+        <article class="card">
+          <header><h2>Message outcomes (30 days)</h2></header>
+          <div class="chart" id="chart-outcomes"></div>
+        </article>
+        <article class="card span-2">
+          <header><h2>Recent messages</h2></header>
+          <div class="table-wrap"><table class="txn-table" id="sys-messages"><thead><tr><th>#</th><th>When</th><th>Channel</th><th>Text</th><th>Outcome</th></tr></thead><tbody></tbody></table></div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <aside class="drawer" id="drawer" hidden aria-label="Transaction details">
+    <div class="drawer-inner">
+      <header><h2 id="d-title">Transaction</h2><button class="icon-btn" id="d-close" aria-label="Close">✕</button></header>
+      <form id="d-form" class="form-grid">
+        <label class="field"><span>Amount</span><input name="amount" type="number" step="0.01" min="0" required></label>
+        <label class="field"><span>Currency</span><input name="currency" maxlength="3" required></label>
+        <label class="field"><span>Direction</span>
+          <select name="direction"><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option></select></label>
+        <label class="field"><span>Date</span><input name="occurred_at" type="datetime-local" required></label>
+        <label class="field span-2"><span>Category</span><select name="category_id"></select></label>
+        <label class="field span-2"><span>Merchant</span><input name="merchant"></label>
+        <label class="field span-2"><span>Tags <small class="muted">(comma separated)</small></span><input name="tags"></label>
+        <label class="field span-2"><span>Note</span><textarea name="note" rows="2"></textarea></label>
+        <div class="form-actions span-2">
+          <button class="btn primary" type="submit">Save</button>
+          <button class="btn danger" type="button" id="d-delete">Delete</button>
+          <button class="btn ghost" type="button" id="d-restore" hidden>Restore</button>
+        </div>
+      </form>
+      <section class="d-meta" id="d-meta"></section>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim" hidden></div>
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script type="module" src="/app/static/app.js"></script>
+</body>
+</html>
