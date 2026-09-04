@@ -168,6 +168,45 @@ class Orchestrator:
                 },
             )
 
+    async def replay(self, raw_message_id: int, *, commit: bool = False) -> dict[str, Any]:
+        """Re-run the pipeline on a stored message (§9 /admin/replay).
+
+        Dry run by default: everything happens inside a transaction that gets
+        rolled back, so you see stages, LLM calls and the reply without side
+        effects. Note it runs against the *current* state (pending actions,
+        recent transactions), not the state at the time.
+        """
+        token = self.call_log.start()
+        s = self.db.new_session()
+        try:
+            raw = RawMessageRepo(s).get(raw_message_id)
+            if raw is None:
+                raise KeyError(raw_message_id)
+            user = UserRepo(s).get(raw.user_id)
+            assert user is not None
+            media = [
+                MediaAttachment.model_validate(m) for m in (raw.media_json or []) if "url" in m
+            ]
+            replies, turn = await self._handle(s, user, raw.text or "", raw.id, media=media)
+            if commit:
+                RawMessageRepo(s).mark(raw, turn.outcome)
+                s.commit()
+                await self.sessions.save(turn.session)
+            else:
+                s.rollback()
+            return {
+                "raw_message_id": raw_message_id,
+                "text": raw.text,
+                "committed": commit,
+                "outcome": turn.outcome,
+                "stages": turn.stages,
+                "replies": [r.model_dump() for r in replies],
+            }
+        finally:
+            s.close()
+            calls = self.call_log.flush(token)
+            log.info("replayed %s (%d llm calls)", raw_message_id, len(calls))
+
     async def handle_text(
         self, user_id: int, text: str, *, raw_message_id: int | None = None
     ) -> list[OutboundMessage]:
