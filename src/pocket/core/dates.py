@@ -160,6 +160,8 @@ def period_range(
             return rng(date(today.year - 1, 1, 1), date(today.year, 1, 1), str(today.year - 1))
         case "last_7_days":
             return rng(today - timedelta(days=6), today + timedelta(days=1), "Last 7 days", True)
+        case "last_90_days":
+            return rng(today - timedelta(days=89), today + timedelta(days=1), "Last 90 days", True)
         case "last_30_days":
             return rng(today - timedelta(days=29), today + timedelta(days=1), "Last 30 days", True)
         case "all_time":

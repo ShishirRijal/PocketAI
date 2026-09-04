@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     # public URL the app is reachable at (used for signature checks + export links)
     public_url: str = "http://localhost:8080"
     admin_token: str | None = None
+    # signs dashboard session cookies; falls back to a hash of admin_token
+    secret_key: str | None = None
+    dashboard_session_days: int = 30
 
     # defaults for newly created users
     default_base_currency: str = "EUR"

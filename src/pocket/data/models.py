@@ -70,7 +70,9 @@ class Category(Base):
     archived_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
-    parent: Mapped[Category | None] = relationship(remote_side="Category.id")
+    parent: Mapped[Category | None] = relationship(
+        remote_side="Category.id", lazy="joined", join_depth=1
+    )
 
     @property
     def full_name(self) -> str:
