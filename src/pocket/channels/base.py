@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -33,6 +33,8 @@ class InboundMessage(BaseModel):
     media: list[MediaAttachment] = Field(default_factory=list)
     location: Location | None = None
     received_at: datetime = Field(default_factory=utcnow)
+    # adapter-private data needed to answer (e.g. discord interaction token)
+    meta: dict[str, Any] = Field(default_factory=dict)
 
 
 class Option(BaseModel):
@@ -55,4 +57,6 @@ class OutboundMessage(BaseModel):
 class ChannelAdapter(Protocol):
     name: ChannelName
 
-    async def send(self, user_channel_id: str, message: OutboundMessage) -> None: ...
+    async def send(
+        self, user_channel_id: str, message: OutboundMessage, meta: dict[str, Any] | None = None
+    ) -> None: ...

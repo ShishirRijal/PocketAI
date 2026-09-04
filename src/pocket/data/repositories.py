@@ -405,6 +405,8 @@ class RawMessageRepo:
         text: str | None,
         media_json: list[dict[str, Any]] | None,
         received_at: datetime,
+        user_channel_id: str | None = None,
+        channel_meta: dict[str, Any] | None = None,
     ) -> tuple[RawMessage, bool]:
         """Returns (row, created). A retried webhook gets the existing row back."""
         existing = self.by_channel_id(channel, channel_msg_id)
@@ -417,6 +419,8 @@ class RawMessageRepo:
             text=text,
             media_json=media_json,
             received_at=received_at,
+            user_channel_id=user_channel_id,
+            channel_meta=channel_meta,
         )
         try:
             with self.s.begin_nested():

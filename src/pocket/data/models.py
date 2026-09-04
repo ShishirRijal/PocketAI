@@ -148,6 +148,10 @@ class RawMessage(Base):
     text: Mapped[str | None] = mapped_column(Text)
     media_json: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
     received_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    # who sent it on that channel, and anything the adapter needs to reply
+    # (discord interaction token, telegram chat id, ...)
+    user_channel_id: Mapped[str | None] = mapped_column(String(128))
+    channel_meta: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     # processing bookkeeping, so a crashed worker can pick things back up
     processed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     outcome: Mapped[str | None] = mapped_column(String(32))

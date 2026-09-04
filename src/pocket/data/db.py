@@ -79,6 +79,10 @@ class Database:
         finally:
             s.close()
 
+    def new_session(self) -> Session:
+        """Caller owns commit/rollback/close (used by dry-run replays)."""
+        return self._factory()
+
     def create_all(self) -> None:
         """Test/dev shortcut. Prod goes through alembic."""
         from pocket.data import models  # noqa: F401
