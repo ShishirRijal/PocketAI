@@ -10,6 +10,7 @@ data is the option value, which we feed in as if the user typed it.
 
 from __future__ import annotations
 
+import contextlib
 import hmac
 import logging
 from datetime import UTC, datetime
@@ -106,13 +107,11 @@ class TelegramAdapter:
             return
         if meta and meta.get("callback_query_id"):
             # stop the button's loading spinner; failure here is harmless
-            try:
+            with contextlib.suppress(httpx.HTTPError):
                 await self.client.post(
                     self._url("answerCallbackQuery"),
                     json={"callback_query_id": meta["callback_query_id"]},
                 )
-            except httpx.HTTPError:
-                pass
         body: dict[str, Any] = {"chat_id": user_channel_id, "text": message.text[:4096]}
         if kb := keyboard(message):
             body["reply_markup"] = kb

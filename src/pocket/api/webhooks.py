@@ -59,12 +59,12 @@ async def whatsapp(
     s = runtime.settings
     form = await request.form()
     params = {k: str(v) for k, v in form.items()}
-    if s.verify_signatures:
-        if not s.twilio_auth_token or not verify_twilio(
-            s.twilio_auth_token, _public_url(request), params, x_twilio_signature
-        ):
-            log.warning("bad twilio signature")
-            raise HTTPException(403, "bad signature")
+    if s.verify_signatures and (
+        not s.twilio_auth_token
+        or not verify_twilio(s.twilio_auth_token, _public_url(request), params, x_twilio_signature)
+    ):
+        log.warning("bad twilio signature")
+        raise HTTPException(403, "bad signature")
     msg = parse_twilio(params, runtime.adapters["whatsapp"].media_auth)  # type: ignore[attr-defined]
     if msg:
         res = await runtime.ingestor.ingest(msg)
@@ -142,9 +142,8 @@ async def cli(
     and returns the replies in the response."""
     runtime = rt(request)
     s = runtime.settings
-    if s.env == "prod" or s.admin_token:
-        if authorization != f"Bearer {s.admin_token}":
-            raise HTTPException(401, "admin token required")
+    if (s.env == "prod" or s.admin_token) and authorization != f"Bearer {s.admin_token}":
+        raise HTTPException(401, "admin token required")
     import uuid
 
     ucid = body.user or s.owner_cli
