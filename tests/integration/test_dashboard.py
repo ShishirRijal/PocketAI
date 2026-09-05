@@ -1,0 +1,102 @@
+import pytest
+from fastapi.testclient import TestClient
+
+from pocket.main import create_app
+from pocket.runtime import build_runtime
+from pocket.services.demo import seed_demo
+
+H = {"Authorization": "Bearer secret"}
+
+
+@pytest.fixture
+def client(settings, services):
+    rt = build_runtime(settings, services=services)
+    seed_demo(services.db, months=3, user_id=services.user_id)
+    app = create_app(settings, runtime=rt, run_worker=False, run_scheduler=False)
+    with TestClient(app) as c:
+        yield c
+
+
+def test_auth(client):
+    assert client.get("/api/v1/me").status_code == 401
+    r = client.get("/app", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/app/login"
+    r = client.post("/app/login", data={"token": "wrong"}, follow_redirects=False)
+    assert "error" in r.headers["location"]
+    r = client.post("/app/login", data={"token": "secret"}, follow_redirects=False)
+    assert "pocket_session" in r.cookies
+    assert client.get("/api/v1/me").json()["base_currency"] == "EUR"  # cookie now set
+    assert "<title>Pocket</title>" in client.get("/app").text
+    client.cookies.set("pocket_session", "1.9999999999.forged")
+    assert client.get("/api/v1/me").status_code == 401
+
+
+def test_token_link_keeps_query(client):
+    r = client.get("/app?token=secret&tab=transactions&period=last_month", follow_redirects=False)
+    assert r.headers["location"] == "/app?tab=transactions&period=last_month"
+
+
+def test_summary_consistent_with_transactions(client):
+    s = client.get("/api/v1/summary?period=last_90_days", headers=H).json()
+    t = client.get("/api/v1/transactions?period=last_90_days&page_size=500", headers=H).json()
+    assert s["total_minor"] == t["total_minor"] == sum(x["amount_base_minor"] for x in t["items"])
+    assert s["count"] == t["total"]
+    assert sum(c["total_minor"] for c in s["by_category"]) == s["total_minor"]
+    assert sum(p["total_minor"] for p in s["series"]["points"]) == s["total_minor"]
+    assert len(s["months"]) == 12
+
+
+def test_filters(client):
+    facets = client.get("/api/v1/facets", headers=H).json()
+    groceries = next(c for c in facets["categories"] if c["name"] == "Groceries")
+    r = client.get(
+        f"/api/v1/transactions?period=all_time&category={groceries['id']}&page_size=500", headers=H
+    ).json()
+    assert r["total"] > 0 and all(x["category"] == "Groceries" for x in r["items"])
+    r = client.get("/api/v1/transactions?period=all_time&q=rimi&page_size=500", headers=H).json()
+    assert all(
+        "rimi" in ((x["merchant"] or "") + " ".join(t["name"] for t in x["tags"])).lower()
+        for x in r["items"]
+    )
+    r = client.get("/api/v1/transactions?period=all_time&direction=income", headers=H).json()
+    assert all(x["direction"] == "income" for x in r["items"])
+    r = client.get(
+        "/api/v1/transactions?period=all_time&min_amount=100&direction=all&page_size=500", headers=H
+    ).json()
+    assert all(x["amount_base_minor"] >= 10000 for x in r["items"])
+    r = client.get(
+        "/api/v1/transactions?period=all_time&sort=amount&order=desc&page_size=2", headers=H
+    ).json()
+    assert r["items"][0]["amount_base_minor"] >= r["items"][1]["amount_base_minor"]
+    r = client.get("/api/v1/transactions?start=2026-09-01&end=2026-09-01", headers=H).json()
+    assert "Sep 01, 2026" in r["range"]["label"]
+
+
+def test_edit_delete_restore(client):
+    t = client.get("/api/v1/transactions?period=all_time&page_size=1", headers=H).json()["items"][0]
+    r = client.patch(
+        f"/api/v1/transactions/{t['id']}",
+        json={"amount": 99.5, "note": "edited", "tags": ["x", "y"]},
+        headers=H,
+    )
+    assert r.status_code == 200
+    assert r.json()["amount_minor"] == 9950 and r.json()["note"] == "edited"
+    detail = client.get(f"/api/v1/transactions/{t['id']}", headers=H).json()
+    assert any(v["reason"] == "dashboard edit" for v in detail["versions"])
+    assert client.delete(f"/api/v1/transactions/{t['id']}", headers=H).json() == {"deleted": True}
+    assert client.get(f"/api/v1/transactions/{t['id']}", headers=H).json()["deleted"] is True
+    client.post(f"/api/v1/transactions/{t['id']}/restore", headers=H)
+    assert client.get(f"/api/v1/transactions/{t['id']}", headers=H).json()["deleted"] is False
+
+
+def test_export_csv(client):
+    r = client.get("/api/v1/export.csv?period=all_time", headers=H)
+    assert r.headers["content-type"].startswith("text/csv")
+    lines = r.text.strip().splitlines()
+    assert lines[0].startswith("id,date,amount,currency")
+    assert len(lines) > 10
+
+
+def test_system(client):
+    r = client.get("/api/v1/system", headers=H).json()
+    assert "chains" in r and "rules/v1" in r["chains"]["extract"]

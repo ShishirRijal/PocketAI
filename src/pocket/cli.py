@@ -115,6 +115,8 @@ def main(argv: list[str] | None = None) -> None:
     ln.add_argument("identity", help="e.g. whatsapp:+3725…, telegram:123456, discord:9876")
     sub.add_parser("telegram-webhook")
     sub.add_parser("discord-commands")
+    dm = sub.add_parser("demo", help="fill the db with realistic fake history")
+    dm.add_argument("--months", type=int, default=6)
     ex = sub.add_parser("export")
     ex.add_argument("--format", default="csv", choices=["csv", "json", "qif"])
     ex.add_argument("--period", default="all_time")
@@ -188,6 +190,13 @@ def main(argv: list[str] | None = None) -> None:
                         s.discord_bot_token, s.discord_application_id
                     ).register_commands()
                 )
+            )
+        case "demo":
+            from pocket.services.demo import seed_demo
+
+            rt = _runtime()
+            print(
+                f"added {seed_demo(rt.services.db, args.months, user_id=rt.owner_id)} demo transactions"
             )
         case "export":
             from pocket.services.exports import export_to_file
