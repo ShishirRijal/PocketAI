@@ -202,3 +202,45 @@ class SessionRow(Base):
     )
     data: Mapped[dict[str, Any]] = mapped_column(JSON)
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class Budget(Base):
+    """Soft monthly/weekly limit per category (§12.12). Informational only."""
+
+    __tablename__ = "budgets"
+    __table_args__ = (UniqueConstraint("user_id", "category_id", "period"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id", ondelete="CASCADE"))
+    amount_minor: Mapped[int] = mapped_column(Integer)  # in the user's base currency
+    period: Mapped[str] = mapped_column(String(8), default="month")  # month|week
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+    category: Mapped[Category] = relationship(lazy="joined")
+
+
+class RecurringRule(Base):
+    """'Every 15th, 12.99 Spotify' (§12.11). The scheduler posts due ones."""
+
+    __tablename__ = "recurring_rules"
+    __table_args__ = (Index("ix_recurring_next", "active", "next_run"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    amount_minor: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3))
+    direction: Mapped[str] = mapped_column(String(10), default="expense")
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
+    merchant: Mapped[str | None] = mapped_column(String(120))
+    note: Mapped[str | None] = mapped_column(Text)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    cadence: Mapped[str] = mapped_column(String(8))  # daily|weekly|monthly|yearly
+    # day of month (monthly), weekday 0-6 (weekly), MMDD (yearly); unused for daily
+    anchor: Mapped[int | None] = mapped_column(Integer)
+    next_run: Mapped[datetime] = mapped_column(UTCDateTime)  # local date at 09:00, stored UTC
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_posted_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+    category: Mapped[Category | None] = relationship(lazy="joined")
