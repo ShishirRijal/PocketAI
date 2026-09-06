@@ -306,6 +306,17 @@ class Orchestrator:
             )
         return t._uctx
 
+    def user_context(self, s: DBSession, user: User) -> UserContext:
+        """Context for LLM stages outside a chat turn (digests, receipts)."""
+        cats = CategoryRepo(s).recently_used(user.id, limit=40)
+        return UserContext(
+            user_id=user.id,
+            base_currency=user.base_currency,
+            timezone=user.timezone,
+            now_local=local_now(user.timezone, self.clock()),
+            categories=[CatRef(c.id, c.full_name) for c in cats],
+        )
+
     def _recent_dict(self, i: int, r: Transaction, t: Turn) -> dict[str, Any]:
         return {
             "index": i,
