@@ -64,24 +64,15 @@ def render_rows(rows: list[Transaction], user: User, fmt: str) -> str:
         for t in rows:
             amt = money.from_minor(t.amount_base_minor, user.base_currency)
             sign = "" if t.direction == "income" else "-"
+            memo = [t.note, " ".join(f"#{x.name}" for x in t.tags)]
+            if t.currency != user.base_currency:
+                memo.append(f"({money.fmt(t.amount_minor, t.currency)})")
             out += [
                 f"D{t.occurred_at.astimezone(tz):%m/%d/%Y}",
                 f"T{sign}{amt}",
                 f"P{t.merchant or ''}",
                 f"L{t.category.full_name if t.category else ''}",
-                "M"
-                + " ".join(
-                    filter(
-                        None,
-                        [
-                            t.note,
-                            " ".join(f"#{x.name}" for x in t.tags),
-                            f"({money.fmt(t.amount_minor, t.currency)})"
-                            if t.currency != user.base_currency
-                            else "",
-                        ],
-                    )
-                ),  # fmt: skip
+                "M" + " ".join(filter(None, memo)),
                 "^",
             ]
         return "\n".join(out) + "\n"
