@@ -14,6 +14,8 @@ from pocket.api import admin, health, webhooks
 from pocket.config import Settings, get_settings
 from pocket.logging_setup import setup_logging
 from pocket.runtime import Runtime, build_runtime
+from pocket.services import exports
+from pocket.web import dashboard
 
 log = logging.getLogger(__name__)
 
@@ -47,12 +49,8 @@ def create_app(
     app.include_router(health.router)
     app.include_router(webhooks.router)
     app.include_router(admin.router)
-    try:
-        from pocket.web import dashboard
-
-        app.include_router(dashboard.router)
-    except ImportError:
-        pass
+    app.include_router(exports.router)
+    app.include_router(dashboard.router)
     return app
 
 
