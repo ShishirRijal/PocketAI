@@ -25,6 +25,7 @@ from pocket.core import commands, money, render
 from pocket.core.calllog import CallLog
 from pocket.core.categorize import CatRef, match_category
 from pocket.core.dates import humanize_when, local_now, resolve_occurred_at
+from pocket.core.directions import DIRECTIONS, LENDING
 from pocket.core.policy import Decision, Proposal, Thresholds, combined_confidence, decide_add
 from pocket.core.session import LastAction, Session, SessionStore
 from pocket.data.db import Database, utcnow
@@ -375,7 +376,11 @@ class Orchestrator:
         occurred = resolve_occurred_at(x.occurred_at, t.tz, t.now)
         base_minor, rate, src = await self._convert(amount_minor, currency, t.base)
 
-        cat_id, cat_name, new_cat, cat_conf = await self._categorize(t, x, text)
+        if x.direction in LENDING:
+            # money between people isn't spending; the person tag carries it
+            cat_id, cat_name, new_cat, cat_conf = None, None, None, None
+        else:
+            cat_id, cat_name, new_cat, cat_conf = await self._categorize(t, x, text)
         tags: dict[str, str | None] = {}
         for tg in x.tags:
             name = normalize_tag(tg.name)
@@ -408,6 +413,7 @@ class Orchestrator:
             merchant=merchant,
             occurred_at=occurred,
             window=timedelta(minutes=self.settings.duplicate_window_minutes),
+            direction=x.direction,
         )
         p.duplicate_of = [d.id for d in dups]
         t.stage(
@@ -745,7 +751,7 @@ class Orchestrator:
             case "date":
                 p.occurred_at = resolve_occurred_at(ch.value, t.tz, t.now).isoformat()
             case "direction":
-                if ch.value in ("expense", "income", "transfer"):
+                if ch.value in DIRECTIONS:
                     p.direction = ch.value
             case "tags":
                 p.tags = [(normalize_tag(x), None) for x in ch.value.split(",") if x.strip()]
@@ -824,7 +830,7 @@ class Orchestrator:
                     updates["occurred_at"] = when
                     described.append(f"date → {humanize_when(when, t.tz, t.now)}")
                 case "direction":
-                    if ch.value in ("expense", "income", "transfer"):
+                    if ch.value in DIRECTIONS:
                         updates["direction"] = ch.value
                         described.append(f"now {ch.value}")
                 case "tags":

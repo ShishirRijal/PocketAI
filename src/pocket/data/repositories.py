@@ -354,6 +354,7 @@ class TransactionRepo:
         merchant: str | None,
         occurred_at: datetime,
         window: timedelta,
+        direction: str | None = None,
     ) -> list[Transaction]:
         """Same amount + currency (+ merchant if we have one), either logged recently
         or said to have happened within the window."""
@@ -371,6 +372,8 @@ class TransactionRepo:
         ]
         if merchant:
             conds.append(func.lower(Transaction.merchant) == merchant.lower())
+        if direction:
+            conds.append(Transaction.direction == direction)
         return list(self.s.scalars(select(Transaction).where(*conds)).all())
 
     def in_range(

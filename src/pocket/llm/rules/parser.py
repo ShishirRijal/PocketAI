@@ -225,8 +225,35 @@ def _all_keywords() -> set[str]:
     return _KW_CACHE
 
 
+_LENDING = [
+    (
+        r"\b(paid me back|gave me back|returned (?:me|my)|got back|repaid me|settled up with me)\b|\bpaid back\b.*\bme\b",
+        "got_back",
+    ),
+    (r"\b(paid back|repaid|returned)\b", "paid_back"),
+    (r"\b(lent|lend|loaned|sapati diye|rin diye)\b|\bowes me\b", "lent"),
+    (r"\b(borrowed|borrow|sapati liye|rin liye)\b|\bi owe\b", "borrowed"),
+]
+_LEND_PERSON = re.compile(
+    r"\b(?:to|from|back)\s+([a-z][a-z'-]{1,20})\b|^\s*([a-z][a-z'-]{1,20})\s+(?:paid|returned|gave|owes|repaid)\b"
+    r"|\bowe\s+([a-z][a-z'-]{1,20})\b|\b(?:lent|borrowed from|repaid|paid)\s+(?!back\b|me\b)([a-z][a-z'-]{1,20})\b",
+    re.IGNORECASE,
+)
+
+
+def lending_person(text: str) -> str | None:
+    for m in _LEND_PERSON.finditer(text):
+        name = next((g for g in m.groups() if g), None)
+        if name and name.lower() not in _NOT_PEOPLE | STOPWORDS | {"back", "me", "him", "her"}:
+            return name.capitalize()
+    return None
+
+
 def detect_direction(text: str) -> str:
     low = text.lower()
+    for rx, direction in _LENDING:
+        if re.search(rx, low):
+            return direction
     if any(re.search(rf"\b{re.escape(w)}\b", low) for w in TRANSFER_WORDS):
         return "transfer"
     if any(re.search(rf"\b{re.escape(w)}\b", low) for w in INCOME_WORDS):
@@ -309,6 +336,11 @@ def extract(text: str, ctx: dict[str, Any]) -> ExtractionResult:
         cat_hint = keyword_category(seg)
         people = find_people(seg) or (people_all if len(amounts) == 1 else [])
         direction = detect_direction(seg)
+        if direction in ("lent", "borrowed", "got_back", "paid_back"):
+            who = lending_person(seg) or lending_person(text)
+            people = [who] if who else people
+            cat_hint = None
+            merchant = None
         if direction == "income" and not cat_hint:
             cat_hint = "Salary" if re.search(r"salary|talab|paycheck", seg, re.I) else "Income"
         words = [w for w in _clean_words(seg) if w.capitalize() not in people]

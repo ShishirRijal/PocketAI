@@ -39,7 +39,9 @@ class ExtractedTag(BaseModel):
 class ExtractedTransaction(BaseModel):
     amount: float = Field(gt=0, description="positive number, no currency symbol")
     currency: str = Field(description="ISO-4217 code, e.g. EUR, NPR, USD")
-    direction: Literal["expense", "income", "transfer"] = "expense"
+    direction: Literal[
+        "expense", "income", "transfer", "lent", "borrowed", "got_back", "paid_back"
+    ] = "expense"
     merchant: str | None = None
     category_hint: str | None = Field(
         default=None, description="best guess category, prefer one of the user's categories"
