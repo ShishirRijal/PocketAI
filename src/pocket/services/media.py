@@ -14,6 +14,7 @@ import base64
 import logging
 import time
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -62,7 +63,7 @@ async def download(
 
 def transcription_models(config_path) -> list[str]:
     try:
-        raw = yaml.safe_load(open(config_path)) or {}
+        raw = yaml.safe_load(Path(config_path).read_text()) or {}
     except OSError:
         return ["openai/whisper-1"]
     t = raw.get("transcription") or {}
