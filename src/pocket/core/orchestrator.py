@@ -466,8 +466,30 @@ class Orchestrator:
         misc = next((r for r in refs if r.name.lower() in ("miscellaneous", "misc")), None)
         return (misc.id if misc else None), (misc.name if misc else None), None, 0.4
 
-    async def _decide(self, t: Turn, proposals: list[Proposal]) -> list[OutboundMessage]:
+    async def decide(
+        self,
+        t: Turn,
+        proposals: list[Proposal],
+        *,
+        force_confirm: bool = False,
+        intro: str | None = None,
+    ) -> list[OutboundMessage]:
+        """Public entry for other input paths (receipts, voice) to hand proposals to policy."""
+        replies = await self._decide(t, proposals, force_confirm=force_confirm)
+        if intro and replies:
+            replies[0].text = f"{intro}\n{replies[0].text}"
+        return replies
+
+    async def _decide(
+        self, t: Turn, proposals: list[Proposal], *, force_confirm: bool = False
+    ) -> list[OutboundMessage]:
         d = decide_add(proposals, self.thresholds)
+        if (
+            force_confirm
+            and d in (Decision.COMMIT, Decision.COMMIT_SHOW)
+            and not all(p.confirmed for p in proposals)
+        ):
+            d = Decision.CONFIRM
         t.stage("policy", decision=d.value)
         pending = PendingRepo(t.s)
         ttl = timedelta(minutes=self.settings.pending_ttl_minutes)

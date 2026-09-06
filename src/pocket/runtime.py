@@ -97,6 +97,7 @@ def build_runtime(
     ingestor = Ingestor(services.db, queue, services.rate_limiter, settings)
     dispatcher = Dispatcher(services.db, services.orchestrator, adapters)
     services.extras["dispatcher"] = dispatcher
+    services.extras["adapters"] = adapters
     return Runtime(
         settings=settings,
         services=services,
