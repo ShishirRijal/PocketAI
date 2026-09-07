@@ -1,0 +1,69 @@
+# Pocket on one VM: api + worker(s) + redis + caddy (§11).
+#   cp .env.example .env && docker compose up -d
+#   docker compose up -d --scale worker=2   # more workers
+services:
+  api:
+    image: ${POCKET_IMAGE:-ghcr.io/shishirrijal/pocket:latest}
+    build: .
+    command: ["api"]
+    env_file: .env
+    environment:
+      POCKET_REDIS_URL: redis://redis:6379/0
+      POCKET_QUEUE_BACKEND: redis
+      POCKET_SCHEDULER_ENABLED: "false"
+    volumes:
+      - ./data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: ${POCKET_IMAGE:-ghcr.io/shishirrijal/pocket:latest}
+    build: .
+    command: ["worker"]
+    env_file: .env
+    environment:
+      POCKET_REDIS_URL: redis://redis:6379/0
+      POCKET_QUEUE_BACKEND: redis
+      # jobs (digest, recurring, backups) run in exactly one place: here
+      POCKET_SCHEDULER_ENABLED: "true"
+    volumes:
+      - ./data:/data
+    depends_on:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      POCKET_DOMAIN: ${POCKET_DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  redis:
+  caddy_data:
+  caddy_config:
