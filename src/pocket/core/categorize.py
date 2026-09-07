@@ -50,9 +50,9 @@ def match_category(hint: str | None, categories: Sequence[CatRef]) -> tuple[CatR
     # the hint is a keyword we know belongs to a category the user has
     for cat_name, words in CATEGORY_KEYWORDS.items():
         if h in words or hs in words:
-            c = by_lower.get(cat_name.lower())
-            if c:
-                return c, 0.9
+            kw_cat = by_lower.get(cat_name.lower())
+            if kw_cat:
+                return kw_cat, 0.9
 
     close = difflib.get_close_matches(h, list(by_lower), n=1, cutoff=0.82)
     if close:

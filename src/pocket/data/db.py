@@ -18,14 +18,14 @@ class UTCDateTime(TypeDecorator[datetime]):
     impl = DateTime
     cache_ok = True
 
-    def process_bind_param(self, value: datetime | None, dialect):  # type: ignore[override]
+    def process_bind_param(self, value: datetime | None, dialect):
         if value is None:
             return None
         if value.tzinfo is None:
             raise ValueError("naive datetime passed to UTCDateTime")
         return value.astimezone(UTC).replace(tzinfo=None)
 
-    def process_result_value(self, value: datetime | None, dialect):  # type: ignore[override]
+    def process_result_value(self, value: datetime | None, dialect):
         if value is None:
             return None
         return value.replace(tzinfo=UTC)

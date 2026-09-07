@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 MAX_BYTES = 10 * 1024 * 1024
-Transcriber = Callable[[bytes, str, str], Awaitable[str]]
+Transcriber = Callable[[bytes, str, int | None], Awaitable[str]]
 
 
 class MediaError(Exception):

@@ -55,7 +55,7 @@ class OutboundMessage(BaseModel):
 
 
 class ChannelAdapter(Protocol):
-    name: ChannelName
+    name: str
 
     async def send(
         self, user_channel_id: str, message: OutboundMessage, meta: dict[str, Any] | None = None

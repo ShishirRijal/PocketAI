@@ -50,7 +50,8 @@ def auth_required(settings: Settings) -> bool:
 
 
 def check_password(settings: Settings, password: str) -> bool:
-    return bool(settings.admin_token) and hmac.compare_digest(password, settings.admin_token)
+    token = settings.admin_token
+    return bool(token) and token is not None and hmac.compare_digest(password, token)
 
 
 def current_user_id(request: Request) -> int | None:

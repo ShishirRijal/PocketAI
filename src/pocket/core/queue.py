@@ -17,11 +17,11 @@ import logging
 import os
 import socket
 from collections.abc import Awaitable, Callable
-from typing import Protocol
+from typing import Any, Protocol
 
 log = logging.getLogger(__name__)
 
-Handler = Callable[[int], Awaitable[None]]
+Handler = Callable[[int], Awaitable[Any]]
 
 
 class MessageQueue(Protocol):

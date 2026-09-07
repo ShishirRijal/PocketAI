@@ -153,7 +153,7 @@ class Pipeline:
 
     async def receipt(self, image_url: str, caption: str, u: UserContext) -> ReceiptExtraction:
         stage = render(load_prompt("receipt"), text=caption, today=u.today)
-        messages = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": self._system(u)},
             {"role": "system", "content": stage},
             {

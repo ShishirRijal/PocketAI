@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -54,7 +54,7 @@ def out(
     return OutboundMessage(
         text=text,
         options=[Option(value=v, label=lab) for v, lab in (options or [])],
-        options_style=style,  # type: ignore[arg-type]
+        options_style=style,
     )
 
 
@@ -116,7 +116,12 @@ class Orchestrator:
         # hooks run after a transaction is committed (budgets nudge, etc)
         self.after_commit: list[Callable[[Turn, list[Transaction]], str | None]] = []
         # media handlers (receipt photos, voice notes) plug in here
-        self.media_handler: Callable[[Turn, list[MediaAttachment], str], Any] | None = None
+        self.media_handler: (
+            Callable[
+                [Orchestrator, Turn, list[MediaAttachment], str], Awaitable[list[OutboundMessage]]
+            ]
+            | None
+        ) = None
 
         from pocket.core import extras
 
@@ -493,7 +498,7 @@ class Orchestrator:
         t.stage("policy", decision=d.value)
         pending = PendingRepo(t.s)
         ttl = timedelta(minutes=self.settings.pending_ttl_minutes)
-        payload = {"proposals": [p.model_dump(mode="json") for p in proposals]}
+        payload: dict[str, Any] = {"proposals": [p.model_dump(mode="json") for p in proposals]}
 
         if d is Decision.CONFIRM_DUPLICATE:
             t.outcome = "pending"
@@ -954,8 +959,8 @@ class Orchestrator:
                 )
             ]
         repo = TransactionRepo(t.s)
-        rows = [repo.get(t.user.id, i, include_deleted=True) for i in la.transaction_ids]
-        rows = [r for r in rows if r is not None]
+        found = [repo.get(t.user.id, i, include_deleted=True) for i in la.transaction_ids]
+        rows = [r for r in found if r is not None]
         t.session.last_action = None
         t.outcome = "undone"
         if la.kind == "add":

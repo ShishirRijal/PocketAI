@@ -335,7 +335,7 @@ def _summary(s: Session, user: User, f: Filters) -> dict[str, Any]:
     want = (lambda d: True) if f.direction == "all" else (lambda d: d == f.direction)
     spend_rows = [r for r in rows if want(r.direction)]
     totals = {"expense": 0, "income": 0, "transfer": 0}
-    counts = Counter()
+    counts: Counter[str] = Counter()
     for r in rows:
         totals[r.direction] = totals.get(r.direction, 0) + r.amount_base_minor
         counts[r.direction] += 1

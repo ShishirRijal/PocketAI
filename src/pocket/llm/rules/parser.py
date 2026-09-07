@@ -382,7 +382,7 @@ def extract(text: str, ctx: dict[str, Any]) -> ExtractionResult:
             ExtractedTransaction(
                 amount=round(amt.value, 4),
                 currency=currency,
-                direction=direction,  # type: ignore[arg-type]
+                direction=direction,
                 merchant=merchant,
                 category_hint=cat_hint,
                 tags=tags,
@@ -631,15 +631,15 @@ def plan_query(text: str, ctx: dict[str, Any]) -> QueryPlan:
             kind, period = "list", "all_time"
 
     return QueryPlan(
-        kind=kind,  # type: ignore[arg-type]
-        period=period,  # type: ignore[arg-type]
+        kind=kind,
+        period=period,
         start_date=start,
         end_date=end,
         category=cat_name,
         merchant=merchant,
         tag=tag,
-        direction=direction,  # type: ignore[arg-type]
-        group_by=group_by,  # type: ignore[arg-type]
+        direction=direction,
+        group_by=group_by,
         weekdays_only=bool(re.search(r"\bweekdays?\b", low)),
         weekends_only=bool(re.search(r"\bweekends?\b", low)),
         limit=limit,

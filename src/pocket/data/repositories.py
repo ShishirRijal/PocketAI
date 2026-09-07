@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import and_, case, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -298,9 +298,7 @@ class TransactionRepo:
         new = sorted(t.name for t in new_tags.values())
         if old == new:
             return
-        self.s.execute(
-            TransactionTag.__table__.delete().where(TransactionTag.transaction_id == txn.id)
-        )
+        self.s.execute(delete(TransactionTag).where(TransactionTag.transaction_id == txn.id))
         for tag in new_tags.values():
             self.s.add(TransactionTag(transaction_id=txn.id, tag_id=tag.id))
         self.s.add(
