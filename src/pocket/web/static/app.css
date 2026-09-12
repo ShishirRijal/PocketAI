@@ -109,6 +109,18 @@ a { color: var(--accent); }
 }
 .icon-btn:hover { color: var(--ink); }
 
+/* ---------- quick log ---------- */
+.quick { flex: 1 1 320px; max-width: 520px; margin-left: 8px; }
+.quick input { width: 100%; background: var(--surface); }
+.quick-reply {
+  max-width: 1400px; margin: 10px auto 0; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent); border-radius: 10px; white-space: pre-wrap; position: relative;
+  width: calc(100% - 48px);
+}
+.quick-reply .you { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+.quick-reply .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.quick-reply .close { position: absolute; top: 6px; right: 8px; }
+
 /* ---------- filters ---------- */
 .filters { padding: 12px 24px 4px; max-width: 1400px; margin: 0 auto; }
 .filter-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
@@ -296,6 +308,8 @@ main { max-width: 1400px; margin: 0 auto; padding: 12px 24px 48px; }
 @media (max-width: 720px) {
   .topbar { padding: 10px 16px; gap: 10px; flex-wrap: wrap; }
   .tabs { order: 3; width: 100%; overflow-x: auto; }
+  .quick { order: 4; flex-basis: 100%; max-width: none; margin-left: 0; }
+  .quick-reply { width: calc(100% - 32px); }
   .filters, main { padding-left: 16px; padding-right: 16px; }
   .grid { grid-template-columns: minmax(0, 1fr); }
   .span-2 { grid-column: auto; }

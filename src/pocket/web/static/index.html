@@ -6,6 +6,9 @@
   <title>Pocket</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232a78d6'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='system-ui'>P</text></svg>">
   <link rel="stylesheet" href="/app/static/app.css">
+  <link rel="manifest" href="/app/static/manifest.webmanifest">
+  <meta name="theme-color" content="#2a78d6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <script>
     // apply the saved theme before first paint
     try { const t = localStorage.getItem("pocket.theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
@@ -19,11 +22,16 @@
       <button role="tab" data-tab="transactions" aria-selected="false">Transactions</button>
       <button role="tab" data-tab="system" aria-selected="false">System</button>
     </nav>
+    <form class="quick" id="quick" autocomplete="off">
+      <input id="quick-input" name="text" placeholder="Log or ask… “12 lunch at wolt”, “how much this week?”" aria-label="Log a transaction or ask a question" maxlength="500">
+    </form>
     <div class="topbar-right">
       <button class="icon-btn" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme">◐</button>
       <a class="btn ghost small" href="/app/logout">Sign out</a>
     </div>
   </header>
+
+  <div class="quick-reply" id="quick-reply" hidden role="status" aria-live="polite"></div>
 
   <section class="filters" aria-label="Filters">
     <div class="filter-row">

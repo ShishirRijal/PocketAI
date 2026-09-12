@@ -100,3 +100,18 @@ def test_export_csv(client):
 def test_system(client):
     r = client.get("/api/v1/system", headers=H).json()
     assert "chains" in r and "rules/v1" in r["chains"]["extract"]
+
+
+def test_quick_log(client):
+    r = client.post("/api/v1/say", json={"text": "coffee 6.50 and metro 2"}, headers=H).json()
+    assert r["replies"][0]["text"].startswith("Two transactions?")
+    assert [o["value"] for o in r["replies"][0]["options"]][:1] == ["yes"]
+    r = client.post("/api/v1/say", json={"text": "yes"}, headers=H).json()
+    assert "Saved 2 transactions" in r["replies"][0]["text"]
+    assert client.post("/api/v1/say", json={"text": "  "}, headers=H).status_code == 400
+
+
+def test_manifest(client):
+    r = client.get("/app/static/manifest.webmanifest")
+    assert r.headers["content-type"].startswith("application/manifest+json")
+    assert client.get("/app/static/../../config.py").status_code == 404

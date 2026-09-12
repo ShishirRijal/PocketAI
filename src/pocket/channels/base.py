@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from pocket.data.db import utcnow
 
-ChannelName = Literal["whatsapp", "discord", "telegram", "cli"]
+ChannelName = Literal["whatsapp", "discord", "telegram", "cli", "web"]
 
 
 class MediaAttachment(BaseModel):

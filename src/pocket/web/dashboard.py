@@ -73,7 +73,8 @@ async def static(name: str) -> Response:
     path = (STATIC / name).resolve()
     if path.parent != STATIC.resolve() or not path.is_file():
         return Response(status_code=404)
-    return FileResponse(path, headers={"Cache-Control": "public, max-age=300"})
+    media = "application/manifest+json" if path.suffix == ".webmanifest" else None
+    return FileResponse(path, media_type=media, headers={"Cache-Control": "public, max-age=300"})
 
 
 def _set_cookie(resp: Response, request: Request) -> None:

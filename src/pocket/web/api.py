@@ -605,6 +605,38 @@ async def restore_transaction(
         return {"restored": True}
 
 
+class SayIn(BaseModel):
+    text: str
+
+
+@router.post("/say")
+async def say(request: Request, body: SayIn, user: User = Depends(require_user)) -> dict[str, Any]:
+    """Quick-log from the dashboard: same pipeline as any chat channel."""
+    import uuid
+
+    from pocket.channels.base import InboundMessage
+    from pocket.data.repositories import UserRepo
+
+    runtime = rt(request)
+    text = body.text.strip()[:500]
+    if not text:
+        raise HTTPException(400, "empty")
+    ucid = f"user:{user.id}"
+    with runtime.services.db.session() as s:
+        repo = UserRepo(s)
+        u = repo.get(user.id)
+        assert u is not None
+        repo.add_identity(u, "web", ucid)
+    msg = InboundMessage(
+        channel="web", channel_msg_id=uuid.uuid4().hex, user_channel_id=ucid, text=text
+    )
+    res = await runtime.ingestor.ingest(msg, enqueue=False)
+    if res.status.value != "queued" or res.raw_message_id is None:
+        raise HTTPException(429 if res.status.value == "rate_limited" else 400, res.status.value)
+    replies = await runtime.services.orchestrator.handle_raw(res.raw_message_id)
+    return {"replies": [r.model_dump() for r in replies]}
+
+
 class CategoryIn(BaseModel):
     name: str
     parent_id: int | None = None

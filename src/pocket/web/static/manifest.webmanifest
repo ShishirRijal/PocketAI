@@ -1,0 +1,17 @@
+{
+  "name": "Pocket",
+  "short_name": "Pocket",
+  "description": "Your personal money log",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#2a78d6",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

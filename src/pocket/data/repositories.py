@@ -92,7 +92,7 @@ class UserRepo:
         if exists:
             return
         self.s.add(UserIdentity(user_id=user.id, channel=channel, channel_user_id=channel_user_id))
-        if user.primary_channel is None and channel != "cli":
+        if user.primary_channel is None and channel not in ("cli", "web"):
             user.primary_channel = channel
         self.s.flush()
 

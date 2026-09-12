@@ -65,11 +65,13 @@ function fmtDate(iso, withTime = false) {
   return new Intl.DateTimeFormat(undefined, opts).format(d);
 }
 
-function niceMax(v) {
-  if (v <= 0) return 1;
-  const p = 10 ** Math.floor(Math.log10(v));
-  for (const s of [1, 2, 2.5, 5, 10]) if (s * p >= v) return s * p;
-  return 10 * p;
+// round tick step (1/2/2.5/5 × 10^n) so labels read €500, €1K, €1.5K… never €1.3K
+function niceScale(v, target = 4) {
+  if (v <= 0) return { max: 1, step: 0.25 };
+  const raw = v / target;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
+  return { max: step * Math.ceil(v / step), step };
 }
 
 let toastTimer;
@@ -174,17 +176,15 @@ function columnChart(host, points, { label, sub, tooltip, onClick, avg, height =
   const M = { t: 10, r: 8, b: 26, l: 52 };
   const iw = W - M.l - M.r;
   const ih = height - M.t - M.b;
-  const max = niceMax(Math.max(...points.flatMap((p) => keys.map((s) => p[s.key] || 0))));
+  const { max, step } = niceScale(Math.max(...points.flatMap((p) => keys.map((s) => p[s.key] || 0))));
   const band = iw / points.length;
   const group = keys.length;
   const bw = Math.max(2, Math.min(24, (band * 0.72) / group));
   const svg = el("svg:svg", { viewBox: `0 0 ${W} ${height}`, role: "img", "aria-label": host.dataset.label || "chart" });
 
-  const ticks = 4;
-  for (let i = 0; i <= ticks; i++) {
-    const v = (max / ticks) * i;
+  for (let v = 0; v <= max + step / 2; v += step) {
     const y = M.t + ih - (v / max) * ih;
-    svg.append(el("svg:line", { class: i === 0 ? "baseline" : "gridline", x1: M.l, x2: W - M.r, y1: y, y2: y }));
+    svg.append(el("svg:line", { class: v === 0 ? "baseline" : "gridline", x1: M.l, x2: W - M.r, y1: y, y2: y }));
     svg.append(el("svg:text", { class: "tick", x: M.l - 8, y: y + 4, "text-anchor": "end", text: ft(v) }));
   }
   if (avg) {
@@ -642,6 +642,33 @@ function bindFilters() {
   $("#f-clear").addEventListener("click", () => setFilters({ ...DEFAULTS, period: state.f.period, start: state.f.start, end: state.f.end }));
 }
 
+// ------------------------------------------------------------------ quick log
+
+async function quickSend(text) {
+  const box = $("#quick-reply");
+  box.hidden = false;
+  box.replaceChildren(el("div", { class: "you", text: `you: ${text}` }), el("div", { class: "muted", text: "…" }));
+  try {
+    const res = await api("/say", { method: "POST", body: { text } });
+    const nodes = [el("div", { class: "you", text: `you: ${text}` })];
+    for (const r of res.replies) {
+      nodes.push(el("div", { text: r.text }));
+      if (r.options?.length) {
+        nodes.push(el("div", { class: "opts" }, r.options.map((o) =>
+          el("button", { class: "btn small", type: "button", text: o.label, onclick: () => quickSend(o.value) }))));
+      }
+    }
+    nodes.push(el("button", { class: "icon-btn close", type: "button", "aria-label": "Dismiss", text: "✕", onclick: () => (box.hidden = true) }));
+    box.replaceChildren(...nodes);
+    state.facets = await api("/facets");
+    fillFacets();
+    syncControls();
+    refresh();
+  } catch (e) {
+    box.replaceChildren(el("div", { text: `Couldn't send: ${e.message}` }));
+  }
+}
+
 // ------------------------------------------------------------------ tabs & refresh
 
 function switchTab(tab) {
@@ -677,6 +704,14 @@ async function refresh() {
 
 function bindChrome() {
   $$(".tabs button").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+  $("#quick").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = $("#quick-input");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    quickSend(text);
+  });
   $("#theme-toggle").addEventListener("click", () => {
     const root = document.documentElement;
     const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
