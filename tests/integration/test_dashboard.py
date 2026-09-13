@@ -115,3 +115,30 @@ def test_manifest(client):
     r = client.get("/app/static/manifest.webmanifest")
     assert r.headers["content-type"].startswith("application/manifest+json")
     assert client.get("/app/static/../../config.py").status_code == 404
+
+
+def test_plans(client):
+    facets = client.get("/api/v1/facets", headers=H).json()
+    cafes = next(c for c in facets["categories"] if c["name"] == "Cafes")
+    before = client.get("/api/v1/plans", headers=H).json()
+    assert (
+        client.post(
+            "/api/v1/budgets", json={"category_id": cafes["id"], "amount": 95}, headers=H
+        ).status_code
+        == 200
+    )
+    client.post("/api/v1/say", json={"text": "every 3rd 7.77 newspaper"}, headers=H)
+    client.post("/api/v1/say", json={"text": "lent 20 to kristjan"}, headers=H)
+    p = client.get("/api/v1/plans", headers=H).json()
+    cafe_budget = next(b for b in p["budgets"] if b["category"] == "Cafes")
+    assert cafe_budget["limit_minor"] == 9500
+    rule = next(r for r in p["recurring"] if r["amount_minor"] == 777)
+    assert p["monthly_fixed_minor"] == before["monthly_fixed_minor"] + 777
+    assert {"person": "kristjan", "owed_to_me_minor": 2000} in p["lending"]
+    assert client.delete(f"/api/v1/recurring/{rule['id']}", headers=H).json() == {"stopped": True}
+    assert client.delete(f"/api/v1/budgets/{cafe_budget['id']}", headers=H).json() == {
+        "deleted": True
+    }
+    p = client.get("/api/v1/plans", headers=H).json()
+    assert all(r["amount_minor"] != 777 for r in p["recurring"])
+    assert all(b["category"] != "Cafes" for b in p["budgets"])

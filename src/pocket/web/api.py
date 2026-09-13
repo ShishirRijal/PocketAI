@@ -741,3 +741,132 @@ async def system(request: Request, user: User = Depends(require_user)) -> dict[s
         "chains": {p: router_.usable_models(p) for p in ("intent", "extract", "query", "receipt")},
         "recent_messages": recent_json,
     }
+
+
+# ------------------------------------------------------------------ plans: budgets, recurring, lending
+
+
+@router.get("/plans")
+async def plans(request: Request, user: User = Depends(require_user)) -> dict[str, Any]:
+    from pocket.data.models import Budget, RecurringRule
+    from pocket.services.budgets import spent
+    from pocket.services.lending import balances
+    from pocket.services.recurring import describe
+
+    tz = ZoneInfo(user.timezone)
+    with rt(request).services.db.session() as s:
+        u = s.get(User, user.id)
+        assert u is not None
+        budgets = [
+            {
+                "id": b.id,
+                "category_id": b.category_id,
+                "category": b.category.full_name,
+                "period": b.period,
+                "limit_minor": b.amount_minor,
+                "spent_minor": spent(s, u, b),
+            }
+            for b in s.scalars(select(Budget).where(Budget.user_id == user.id)).all()
+        ]
+        rules = [
+            {
+                "id": r.id,
+                "description": describe(r),
+                "schedule": describe(r).split(" · ", 1)[-1],
+                "amount_minor": r.amount_minor,
+                "currency": r.currency,
+                "cadence": r.cadence,
+                "category": r.category.full_name if r.category else None,
+                "merchant": r.merchant,
+                "next_run": r.next_run.astimezone(tz).date().isoformat(),
+            }
+            for r in s.scalars(
+                select(RecurringRule)
+                .where(RecurringRule.user_id == user.id, RecurringRule.active.is_(True))
+                .order_by(RecurringRule.next_run)
+            ).all()
+        ]
+        owed = balances(s, user.id)
+    monthly_fixed = sum(
+        r["amount_minor"]
+        * {"monthly": 1, "weekly": 52 / 12, "daily": 30.4, "yearly": 1 / 12}[r["cadence"]]
+        for r in rules
+        if r["currency"] == user.base_currency
+    )
+    return {
+        "currency": user.base_currency,
+        "budgets": sorted(budgets, key=lambda b: -(b["spent_minor"] / max(1, b["limit_minor"]))),
+        "recurring": rules,
+        "monthly_fixed_minor": round(monthly_fixed),
+        "lending": [
+            {"person": p, "owed_to_me_minor": v}
+            for p, v in sorted(owed.items(), key=lambda kv: -abs(kv[1]))
+        ],
+    }
+
+
+class BudgetIn(BaseModel):
+    category_id: int
+    amount: float
+    period: str = "month"
+
+
+@router.post("/budgets")
+async def upsert_budget(
+    request: Request, body: BudgetIn, user: User = Depends(require_user)
+) -> dict[str, Any]:
+    from pocket.data.models import Budget
+
+    if body.period not in ("month", "week") or body.amount <= 0:
+        raise HTTPException(400, "bad budget")
+    with rt(request).services.db.session() as s:
+        if not CategoryRepo(s).get(user.id, body.category_id):
+            raise HTTPException(400, "unknown category")
+        b = s.scalars(
+            select(Budget).where(
+                Budget.user_id == user.id,
+                Budget.category_id == body.category_id,
+                Budget.period == body.period,
+            )
+        ).first()
+        amount = money.to_minor(Decimal(str(body.amount)), user.base_currency)
+        if b:
+            b.amount_minor = amount
+        else:
+            b = Budget(
+                user_id=user.id,
+                category_id=body.category_id,
+                amount_minor=amount,
+                period=body.period,
+            )
+            s.add(b)
+        s.flush()
+        return {"id": b.id}
+
+
+@router.delete("/budgets/{budget_id}")
+async def delete_budget(
+    request: Request, budget_id: int, user: User = Depends(require_user)
+) -> dict[str, Any]:
+    from pocket.data.models import Budget
+
+    with rt(request).services.db.session() as s:
+        b = s.get(Budget, budget_id)
+        if not b or b.user_id != user.id:
+            raise HTTPException(404)
+        s.delete(b)
+        return {"deleted": True}
+
+
+@router.delete("/recurring/{rule_id}")
+async def stop_recurring(
+    request: Request, rule_id: int, user: User = Depends(require_user)
+) -> dict[str, Any]:
+    from pocket.data.models import RecurringRule
+
+    with rt(request).services.db.session() as s:
+        r = s.get(RecurringRule, rule_id)
+        if not r or r.user_id != user.id:
+            raise HTTPException(404)
+        r.active = False
+        return {"stopped": True}
