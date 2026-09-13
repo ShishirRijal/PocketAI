@@ -1,3 +1,4 @@
+import os
 import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -59,11 +60,15 @@ def fake():
     return FakeBackend()
 
 
+# set POCKET_TEST_DATABASE_URL=postgresql+psycopg://... to run the suite on postgres
+TEST_DB_URL = os.environ.get("POCKET_TEST_DATABASE_URL")
+
+
 @pytest.fixture
 def settings(tmp_path):
     return Settings(
         env="test",
-        database_url=f"sqlite:///{tmp_path / 'test.db'}",
+        database_url=TEST_DB_URL or f"sqlite:///{tmp_path / 'test.db'}",
         redis_url=None,
         owner_cli="cli:test",
         owner_whatsapp="whatsapp:+37255500000",
@@ -85,6 +90,10 @@ def services(settings, clock, fake):
         fx=StaticFx(),
         use_litellm=False,
     )
+    if TEST_DB_URL:
+        from pocket.data.db import Base
+
+        Base.metadata.drop_all(svc.db.engine)
     svc.db.create_all()
     svc.orchestrator.clock = clock
     svc.user_id = ensure_owner(svc.db, settings)
