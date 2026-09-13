@@ -8,11 +8,12 @@ router:
   fast:          # Stage A intent classifier: cheap, fast, disposable
     primary: gemini/gemini-flash-lite-latest
     fallbacks: [xai/grok-4-fast, openai/gpt-4o-mini, rules/v1]
-  extractor:     # Stage B/C: structured output, more careful
-    primary: gemini/gemini-3.8-flash
-    fallbacks: [gemini/gemini-flash-lite-latest, openai/gpt-4o-mini, xai/grok-4, rules/v1]
+  extractor:     # Stage B/C: structured output. flash-lite first: in practice 3.8-flash
+                 # 503s ("high demand") often and is ~2x slower for no gain on the golden set
+    primary: gemini/gemini-flash-lite-latest
+    fallbacks: [openai/gpt-4o-mini, gemini/gemini-3.8-flash, xai/grok-4, rules/v1]
   resolver:      # edit / delete target resolution
-    primary: gemini/gemini-3.8-flash
+    primary: gemini/gemini-flash-lite-latest
     fallbacks: [openai/gpt-4o-mini, rules/v1]
   query:         # Stage B''': NL -> query plan. The doc wanted 2.5-pro, but pro has no
                  # free quota on new keys (429) and 2.5-* is closed to new users (404).
