@@ -44,6 +44,28 @@ def purge_llm_payloads(rt: Runtime, days: int = 30) -> int:
     return n
 
 
+def purge_deleted(rt: Runtime) -> int:
+    """§7.3: deletes are soft; optionally really remove them after N days."""
+    days = rt.settings.purge_deleted_after_days
+    if days <= 0:
+        return 0
+    from sqlalchemy import delete
+
+    from pocket.data.models import Transaction
+
+    with rt.services.db.session() as s:
+        res = s.execute(
+            delete(Transaction).where(
+                Transaction.deleted_at.is_not(None),
+                Transaction.deleted_at < utcnow() - timedelta(days=days),
+            )
+        )
+        n = int(getattr(res, "rowcount", 0) or 0)
+    if n:
+        log.info("purged %d soft-deleted transactions older than %d days", n, days)
+    return n
+
+
 async def run_digests(rt: Runtime) -> None:
     from pocket.services.digests import send_due_digests
 
@@ -71,5 +93,8 @@ def build_scheduler(rt: Runtime) -> AsyncIOScheduler:
     sched.add_job(run_backup, CronTrigger(hour=1, minute=30), args=[rt], id="backup", **common)
     sched.add_job(
         purge_llm_payloads, CronTrigger(hour=2, minute=10), args=[rt], id="purge", **common
+    )
+    sched.add_job(
+        purge_deleted, CronTrigger(day=1, hour=3), args=[rt], id="purge_deleted", **common
     )
     return sched

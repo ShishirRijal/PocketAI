@@ -63,7 +63,16 @@ services:
       - api
     restart: unless-stopped
 
+  # optional: `docker compose --profile local up -d` + POCKET_LLM_CONFIG_PATH=config/llm.local.yaml
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["local"]
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
 volumes:
+  ollama:
   redis:
   caddy_data:
   caddy_config:

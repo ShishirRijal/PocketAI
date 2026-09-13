@@ -86,6 +86,8 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     digest_weekday: int = 6  # sunday
     digest_hour: int = 20
+    # hard-delete soft-deleted transactions after this many days (0 = keep forever)
+    purge_deleted_after_days: int = 0
     backup_dir: Path = PROJECT_ROOT / "data" / "backups"
     backup_keep: int = 14
     backup_azure_sas_url: str | None = Field(

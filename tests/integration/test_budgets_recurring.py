@@ -73,3 +73,23 @@ async def test_recurring_catch_up(say, services, clock):
     clock.advance(days=3)
     notes = post_due_sync(services.db, now=clock.now)
     assert notes[0][1].count("€3.00") == 4
+
+
+async def test_purge_deleted(say, services, settings):
+    from datetime import timedelta
+    from types import SimpleNamespace
+
+    from pocket.data.db import utcnow
+    from pocket.services.scheduler import purge_deleted
+
+    await say("lunch 12")
+    await say("delete 1")
+    rt = SimpleNamespace(settings=settings, services=services)
+    assert purge_deleted(rt) == 0  # disabled by default
+    settings.purge_deleted_after_days = 30
+    with services.db.session() as s:
+        t = s.scalars(select(Transaction)).one()
+        t.deleted_at = utcnow() - timedelta(days=31)
+    assert purge_deleted(rt) == 1
+    with services.db.session() as s:
+        assert s.scalars(select(Transaction)).all() == []

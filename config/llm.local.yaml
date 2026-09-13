@@ -1,0 +1,28 @@
+# Offline / "travel week" profile (§5.4): everything on a local Ollama model,
+# with the rules parser behind it. Use with:
+#   POCKET_LLM_CONFIG_PATH=config/llm.local.yaml
+#   OLLAMA_API_BASE=http://localhost:11434   (or http://ollama:11434 in compose)
+#   docker compose --profile local up -d && docker compose exec ollama ollama pull qwen2.5:3b-instruct
+
+router:
+  local:
+    primary: ollama_chat/qwen2.5:3b-instruct
+    fallbacks: [ollama_chat/llama3.2:3b, rules/v1]
+  local_text:
+    primary: ollama_chat/qwen2.5:3b-instruct
+    fallbacks: [ollama_chat/llama3.2:3b]
+
+purposes:
+  intent: local
+  extract: local
+  categorize: local
+  edit: local
+  delete: local
+  query: local
+  summarize: local_text
+  receipt: local_text   # small local models can't read images; receipts will say so
+
+quotas: {}
+
+transcription:
+  model: openai/whisper-1   # no local whisper wired up yet
