@@ -39,7 +39,7 @@ async def test_receipt_photo(services, fake, say):
     )
     r = await run_media(services, "https://media.example/r.jpg", "image/jpeg")
     assert r.startswith("🧾 Read from your receipt:")
-    assert "€42.90 · Groceries" in r and "Save it?" in r
+    assert "€42.90 · Groceries" in r and "Look right?" in r
     # the image went to the model inline, not as the provider url
     _, _, prompt = fake.calls[-1]
     assert prompt.images[0].startswith("data:image/jpeg;base64,")

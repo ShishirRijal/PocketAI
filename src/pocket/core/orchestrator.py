@@ -548,7 +548,9 @@ class Orchestrator:
             if len(proposals) == 1:
                 return [
                     out(
-                        f"Not 100% sure I got this:\n{lines[0]}\nSave it? (yes / no, or tell me what's off)",
+                        f"{lines[0]}\nLook right? (yes / no, or tell me what's off)"
+                        if force_confirm
+                        else f"Not 100% sure I got this:\n{lines[0]}\nSave it? (yes / no, or tell me what's off)",
                         YES_NO,
                     )
                 ]
