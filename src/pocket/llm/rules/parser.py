@@ -362,14 +362,18 @@ def extract(text: str, ctx: dict[str, Any]) -> ExtractionResult:
         for p in people:
             tags.append(ExtractedTag(name=p.lower(), kind="person"))
 
+        lending = direction in ("lent", "borrowed", "got_back", "paid_back")
         conf = 0.92
         if not amt.currency and not shared_cur:
             conf -= 0.05
-        if not cat_hint:
+        if lending:
+            # no category by design; what matters is knowing who
+            conf -= 0.0 if people else 0.3
+        elif not cat_hint:
             conf -= 0.25
         if len(amounts) > 1:
             conf -= 0.05
-        if not words and not merchant:
+        if not words and not merchant and not lending:
             conf -= 0.25  # "12" on its own: what was it?
 
         note = None

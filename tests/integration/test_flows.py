@@ -230,3 +230,17 @@ async def test_history(say):
     await say("sorry it was 14")
     r = await say("history 1")
     assert "amount_minor" in r
+
+
+async def test_undo_does_not_reach_past_other_commands(say, services):
+    await say("lunch 12")
+    await say("budget cafes 50")
+    r = await say("undo")
+    assert "Nothing to undo" in r
+    assert len(txns(services)) == 1
+
+
+async def test_undo_survives_read_only_commands(say, services):
+    await say("lunch 12")
+    await say("categories")
+    assert "Undone" in await say("undo")

@@ -60,6 +60,11 @@ def out(
 
 YES_NO = [("yes", "✅ Yes"), ("no", "❌ No")]
 
+READ_ONLY_COMMANDS = frozenset(
+    {"categories", "tags", "cost", "settings", "review", "history", "budgets", "recurring",
+     "lending", "person", "digest", "export"}
+)  # fmt: skip
+
 
 @dataclass
 class Turn:
@@ -1081,6 +1086,10 @@ class Orchestrator:
                 return [out(self.run_query(t, plan))]
         handler = self.extra_commands.get(cmd.name)
         if handler:
+            if cmd.name not in READ_ONLY_COMMANDS:
+                # undo only reverses transaction adds/edits/deletes; after anything
+                # else it would reach back to an older action, which surprises people
+                t.session.last_action = None
             return await handler(self, t, cmd)
         return [out(f"`{cmd.name}` isn't wired up yet.")]
 
