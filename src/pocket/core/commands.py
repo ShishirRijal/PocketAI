@@ -227,6 +227,8 @@ def parse(text: str) -> Command | None:
         return Command("settings")
     if t in {"owes", "who owes me", "debts", "loans", "lending"}:
         return Command("lending")
+    if m := re.fullmatch(r"(?:person|profile|who is|whois)\s+([a-z][\w'-]{1,30})", t):
+        return Command("person", {"name": m.group(1)})
     if m := re.fullmatch(r"history\s+(\d)", t):
         return Command("history", {"index": int(m.group(1))})
     return None

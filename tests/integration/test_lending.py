@@ -20,3 +20,13 @@ async def test_all_square(say):
     await say("lent 20 to maria")
     await say("maria paid me back 20")
     assert "All square" in await say("owes")
+
+
+async def test_person_profile(say):
+    await say("coffee w/ arjun 6.50")
+    await say("dinner 30 with arjun")
+    await say("lent 20 to arjun")
+    r = await say("person arjun")
+    assert "👤 Arjun" in r and "across 2" in r
+    assert "Owes you €20.00" in r
+    assert "don't know" in await say("person zed")

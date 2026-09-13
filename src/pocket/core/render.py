@@ -107,6 +107,7 @@ HELP = """Pocket — just tell me what you spent.
 • categories · category add Pets · category rename X to Y
 • budget cafes 80 · budgets
 • every 15th 12.99 spotify · recurring
+• lent 20 to arjun · owes · person arjun
 • export csv month · cost · digest · review
 • currency eur · tz Europe/Lisbon"""
 
