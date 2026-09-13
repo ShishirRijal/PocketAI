@@ -662,7 +662,10 @@ class Orchestrator:
                 p.category_id, p.category_name, p.new_category = misc.id, misc.name, None
             elif ans in ("c", "c)"):
                 return [out("Sure, what should I call the category?")]
-            elif commands.parse(text) or len(ans) > 40:
+            elif (
+                commands.parse(text) or len(ans) > 40 or re.search(r"\d", ans) or ans.endswith("?")
+            ):
+                # a new expense or a question, not a category name
                 pending.clear(t.user.id)
                 return None
             else:
@@ -689,7 +692,12 @@ class Orchestrator:
                 for p in chosen:
                     p.confirmed = True
                 return await self._decide(t, chosen)
-            # "tell me what's off": treat as an edit against the proposals
+            # "tell me what's off": only if it reads as a correction. A new
+            # expense or a question means they moved on; drop the proposal.
+            intent = await self.pipeline.intent(text, self._uctx(t))
+            if intent.intent is not Intent.EDIT:
+                pending.clear(t.user.id)
+                return None
             revised = await self._revise_proposals(t, proposals, text)
             if revised is None:
                 pending.clear(t.user.id)

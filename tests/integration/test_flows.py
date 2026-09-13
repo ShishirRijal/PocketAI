@@ -244,3 +244,19 @@ async def test_undo_survives_read_only_commands(say, services):
     await say("lunch 12")
     await say("categories")
     assert "Undone" in await say("undo")
+
+
+async def test_new_expense_while_category_pending(say, services, fake):
+    services.router.config.chains["categorize"].primary = "fake/x"
+    fake.queue("categorize", {"new_category_name": "Documents", "confidence": 0.8})
+    await say("40 eur passport photos")
+    r = await say("coffee 4")
+    assert "✅ Logged €4.00 · Cafes" in r
+    assert [t.amount_minor for t in txns(services)] == [400]
+
+
+async def test_new_expense_while_multi_pending(say, services):
+    await say("coffee 6.50 and metro 2")
+    r = await say("lunch 12")
+    assert "✅ Logged €12.00 · Restaurants" in r
+    assert [t.amount_minor for t in txns(services)] == [1200]

@@ -280,7 +280,8 @@ _DELETE = re.compile(
 )
 _EDIT = re.compile(
     r"\b(sorry|actually|oops|change|edit|make it|should be|should've been|was actually|correct|"
-    r"correction|fix|update|instead|it was|that was|not \d|wrong|meant|haina|hoina)\b",
+    r"correction|fix|update|instead|it was|that was|not \d|wrong|meant|haina|hoina)\b"
+    r"|\b(?:was|were|is)\s+(?:actually\s+|only\s+)?[€$£₨]?\d",
     re.I,
 )
 
