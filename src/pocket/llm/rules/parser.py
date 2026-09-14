@@ -50,8 +50,8 @@ _AMOUNT = re.compile(
 )
 # a number followed by one of these is not money
 _NOT_MONEY_AFTER = re.compile(
-    r"^\s*(?:am|pm|h\b|hrs?|hours?|mins?|minutes?|days?|din|weeks?|months?|years?|x\b|times|"
-    r"st\b|nd\b|rd\b|th\b|%|:|kg|km|g\b|l\b|ml|people|persons?|pcs|pieces)",
+    r"^\s*(?:(?:am|pm|h|hrs?|hours?|mins?|minutes?|days?|din|weeks?|months?|years?|x|times|"
+    r"st|nd|rd|th|kg|km|g|l|ml|people|persons?|pcs|pieces|ways?)\b|%|:)",
     re.IGNORECASE,
 )
 
