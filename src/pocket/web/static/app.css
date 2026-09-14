@@ -17,6 +17,7 @@
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-1-wash: rgba(42, 120, 214, 0.10);
+  --track: #cde2fb;
   --good: #006300;
   --bad: #b3261e;
   --status-good: #0ca30c;
@@ -44,6 +45,7 @@
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-1-wash: rgba(57, 135, 229, 0.14);
+    --track: #184f95;
     --good: #0ca30c;
     --bad: #f2b8b5;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -64,6 +66,7 @@
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-1-wash: rgba(57, 135, 229, 0.14);
+  --track: #184f95;
   --good: #0ca30c;
   --bad: #f2b8b5;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -281,6 +284,23 @@ main { max-width: 1400px; margin: 0 auto; padding: 12px 24px 48px; }
 .d-meta blockquote { margin: 0; padding: 8px 12px; background: var(--surface-2); border-radius: 8px; }
 .d-meta ul { margin: 0; padding-left: 18px; color: var(--ink-2); }
 .d-meta code { font-size: 12px; }
+
+/* ---------- plans ---------- */
+.span-3 { grid-column: 1 / -1; }
+.meter-row { display: grid; grid-template-columns: minmax(90px, 22%) 1fr 150px 190px; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--grid); }
+.meter-row:last-child { border-bottom: 0; }
+.meter { height: 10px; border-radius: 5px; background: var(--track); overflow: hidden; }
+.meter > span { display: block; height: 100%; border-radius: 5px; background: var(--series-1); }
+.meter.warn > span { background: var(--status-warning); }
+.meter.over > span { background: var(--status-critical); }
+.meter-row .amt { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 13px; white-space: nowrap; text-align: right; }
+@media (max-width: 720px) { .meter-row { grid-template-columns: 1fr auto; } .meter-row .meter { grid-column: 1 / -1; grid-row: 2; } .meter-row .state { grid-column: 1 / -1; } }
+.meter-row .state { font-size: 12px; white-space: nowrap; }
+.inline-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--grid); }
+.lend-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--grid); }
+.lend-row:last-child { border-bottom: 0; }
+.lend-row .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
+.small-print { font-size: 12px; margin: 10px 0 0; }
 
 /* ---------- system ---------- */
 .chain { margin-bottom: 10px; }

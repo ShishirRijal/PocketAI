@@ -20,6 +20,7 @@
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
       <button role="tab" data-tab="transactions" aria-selected="false">Transactions</button>
+      <button role="tab" data-tab="plans" aria-selected="false">Plans</button>
       <button role="tab" data-tab="system" aria-selected="false">System</button>
     </nav>
     <form class="quick" id="quick" autocomplete="off">
@@ -142,6 +143,30 @@
           <span id="pg-info" class="muted"></span>
           <button class="btn ghost" id="pg-next">Next ›</button>
         </footer>
+      </div>
+    </section>
+
+    <section id="tab-plans" class="tab-panel" hidden>
+      <div class="grid">
+        <article class="card span-2">
+          <header><h2>Budgets</h2><span class="muted" id="budget-note"></span></header>
+          <div id="budgets"></div>
+          <form class="inline-form" id="budget-form">
+            <label class="field compact"><span>Category</span><select name="category_id" required></select></label>
+            <label class="field compact"><span>Limit</span><input name="amount" type="number" min="1" step="1" required inputmode="decimal"></label>
+            <label class="field compact"><span>Per</span><select name="period"><option value="month">month</option><option value="week">week</option></select></label>
+            <button class="btn primary" type="submit">Set budget</button>
+          </form>
+        </article>
+        <article class="card">
+          <header><h2>Lending</h2></header>
+          <div id="lending"></div>
+        </article>
+        <article class="card span-3">
+          <header><h2>Recurring</h2><span class="muted" id="fixed-note"></span></header>
+          <div class="table-wrap"><table class="txn-table" id="recurring"><thead><tr><th>What</th><th>Category</th><th class="num">Amount</th><th>Next</th><th></th></tr></thead><tbody></tbody></table></div>
+          <p class="muted small-print">Add from chat, e.g. “every 15th 12.99 spotify” (you can use the box at the top).</p>
+        </article>
       </div>
     </section>
 

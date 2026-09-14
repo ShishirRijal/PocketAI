@@ -511,6 +511,56 @@ async function saveDrawer(evt) {
   }
 }
 
+// ------------------------------------------------------------------ plans
+
+async function loadPlans() {
+  const p = await api("/plans");
+  const bh = $("#budgets");
+  if (!p.budgets.length) bh.replaceChildren(el("div", { class: "empty", text: "No budgets yet. Set one below or say “budget cafes 80”." }));
+  else bh.replaceChildren(...p.budgets.map((b) => {
+    const frac = b.spent_minor / b.limit_minor;
+    const cls = frac >= 1 ? "over" : frac >= 0.8 ? "warn" : "";
+    const state = frac >= 1 ? "⛔ over" : frac >= 0.8 ? "⚠ close" : "✓ on track";
+    return el("div", { class: "meter-row" },
+      el("div", {}, el("div", { text: b.category }), el("div", { class: "muted", style: "font-size:12px", text: `per ${b.period}` })),
+      el("div", { class: `meter ${cls}`, role: "meter", "aria-valuemin": 0, "aria-valuemax": b.limit_minor, "aria-valuenow": b.spent_minor, "aria-label": b.category },
+        el("span", { style: `width:${Math.min(100, frac * 100).toFixed(1)}%` })),
+      el("div", { class: "amt", text: `${m(b.spent_minor)} / ${m(b.limit_minor, { whole: true })}` }),
+      el("div", { class: "state" }, `${state} · ${Math.round(frac * 100)}% `,
+        el("button", { class: "link", type: "button", text: "remove", onclick: async () => { await api(`/budgets/${b.id}`, { method: "DELETE" }); loadPlans(); } })),
+    );
+  }));
+  const form = $("#budget-form");
+  const sel = form.category_id;
+  const keep = sel.value;
+  sel.replaceChildren(...state.facets.categories.map((c) => el("option", { value: c.id, text: c.name })));
+  if (keep) sel.value = keep;
+  $("#budget-note").textContent = p.budgets.length ? `${p.budgets.filter((b) => b.spent_minor >= 0.8 * b.limit_minor).length} need attention` : "";
+
+  const lh = $("#lending");
+  if (!p.lending.length) lh.replaceChildren(el("div", { class: "empty", text: "All square 🤝" }));
+  else lh.replaceChildren(...p.lending.map((l) => el("div", { class: "lend-row" },
+    el("span", { text: l.person.charAt(0).toUpperCase() + l.person.slice(1) }),
+    el("span", {}, el("span", { class: "muted", text: l.owed_to_me_minor > 0 ? "owes you " : "you owe " }), el("span", { class: "amt", text: m(Math.abs(l.owed_to_me_minor)) })),
+  )));
+
+  $("#fixed-note").textContent = p.recurring.length ? `≈ ${m(p.monthly_fixed_minor)} per month in fixed costs` : "";
+  const rb = $("#recurring tbody");
+  if (!p.recurring.length) rb.replaceChildren(el("tr", {}, el("td", { colspan: 5, class: "empty", text: "Nothing recurring yet" })));
+  else rb.replaceChildren(...p.recurring.map((r) => el("tr", {},
+    el("td", {}, el("div", { text: r.merchant || r.category || "—" }), el("div", { class: "muted", style: "font-size:12px", text: r.schedule })),
+    el("td", {}, el("span", { class: "cat-pill", text: r.category || "—" })),
+    el("td", { class: "num", text: money(r.amount_minor, r.currency) }),
+    el("td", { text: fmtDate(`${r.next_run}T12:00:00`) }),
+    el("td", {}, el("button", { class: "link", type: "button", text: "stop", onclick: async () => {
+      if (!confirm(`Stop “${r.description}”?`)) return;
+      await api(`/recurring/${r.id}`, { method: "DELETE" });
+      toast("Stopped");
+      loadPlans();
+    } })),
+  )));
+}
+
 // ------------------------------------------------------------------ system
 
 async function loadSystem() {
@@ -675,7 +725,7 @@ function switchTab(tab) {
   state.tab = tab;
   $$(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
   $$(".tab-panel").forEach((p) => (p.hidden = p.id !== `tab-${tab}`));
-  $(".filters").hidden = tab === "system";
+  $(".filters").hidden = tab === "system" || tab === "plans";
   writeUrl();
   refresh();
 }
@@ -692,6 +742,8 @@ async function refresh() {
       renderOverview();
     } else if (state.tab === "transactions") {
       await loadTransactions();
+    } else if (state.tab === "plans") {
+      await loadPlans();
     } else {
       await loadSystem();
     }
@@ -739,6 +791,18 @@ function bindChrome() {
   $("#scrim").addEventListener("click", closeDrawer);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && drawerId) closeDrawer(); });
   $("#d-form").addEventListener("submit", saveDrawer);
+  $("#budget-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api("/budgets", { method: "POST", body: { category_id: Number(f.category_id.value), amount: Number(f.amount.value), period: f.period.value } });
+      f.amount.value = "";
+      toast("Budget saved");
+      loadPlans();
+    } catch (err) {
+      toast(`Couldn't save: ${err.message}`);
+    }
+  });
   $("#d-delete").addEventListener("click", async () => {
     await api(`/transactions/${drawerId}`, { method: "DELETE" });
     toast("Deleted");

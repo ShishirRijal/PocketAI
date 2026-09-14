@@ -12,10 +12,13 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import select
+
 from pocket.core import money
 from pocket.data.db import Database
-from pocket.data.models import Transaction
+from pocket.data.models import Budget, RecurringRule, Transaction
 from pocket.data.repositories import CategoryRepo, TagRepo, TransactionRepo, UserRepo
+from pocket.services.recurring import next_date
 
 NPR_PER_EUR = Decimal("174.4")
 
@@ -81,7 +84,9 @@ def seed_demo(db: Database, months: int = 6, seed: int = 42, user_id: int | None
                 rate = (Decimal(1) / NPR_PER_EUR).quantize(Decimal("1e-10"))
                 base_minor = money.convert_minor(minor, "NPR", "EUR", rate)
             c = cats.by_name(user.id, cat) or cats.create(user.id, cat)
-            tag_rows = [tags.get_or_create(user.id, t) for t in tag_names]
+            tag_rows = [
+                tags.get_or_create(user.id, t, "person" if t in PEOPLE else None) for t in tag_names
+            ]
             if merchant:
                 tag_rows.append(tags.get_or_create(user.id, merchant, "merchant"))
             txns.add(
@@ -160,4 +165,63 @@ def seed_demo(db: Database, months: int = 6, seed: int = 42, user_id: int | None
                     note="not sure what this was",
                 )
             d += timedelta(days=1)
+
+        # a couple of loans between friends
+        add(
+            today - timedelta(days=9),
+            "Miscellaneous",
+            None,
+            40.0,
+            ["arjun"],
+            direction="lent",
+            conf=0.95,
+        )
+        add(
+            today - timedelta(days=3),
+            "Miscellaneous",
+            None,
+            15.0,
+            ["arjun"],
+            direction="got_back",
+            conf=0.95,
+        )
+        add(
+            today - timedelta(days=6),
+            "Miscellaneous",
+            None,
+            25.0,
+            ["maria"],
+            direction="borrowed",
+            conf=0.95,
+        )
+        for tname in ("arjun", "maria"):
+            tags.get_or_create(user.id, tname, "person")
+
+        # budgets and the recurring rules behind the monthly items
+        for cat, limit in (
+            ("Cafes", 80),
+            ("Restaurants", 150),
+            ("Groceries", 420),
+            ("Shopping", 60),
+        ):
+            c = cats.by_name(user.id, cat)
+            if (
+                c
+                and not s.scalars(
+                    select(Budget).where(Budget.user_id == user.id, Budget.category_id == c.id)
+                ).first()
+            ):
+                s.add(
+                    Budget(
+                        user_id=user.id, category_id=c.id, amount_minor=limit * 100, period="month"
+                    )
+                )
+        for day, cat, mer, amt, tg in MONTHLY:
+            c = cats.by_name(user.id, cat)
+            nxt = next_date("monthly", day, today, inclusive=False)
+            s.add(RecurringRule(
+                user_id=user.id, amount_minor=money.to_minor(Decimal(str(amt)), "EUR"), currency="EUR",
+                category_id=c.id if c else None, merchant=mer, tags=tg, cadence="monthly", anchor=day,
+                next_run=datetime.combine(nxt, time(9, 0), tzinfo=tz).astimezone(UTC),
+            ))  # fmt: skip
         return n
