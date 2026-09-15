@@ -30,3 +30,39 @@ async def test_person_profile(say):
     assert "👤 Arjun" in r and "across 2" in r
     assert "Owes you €20.00" in r
     assert "don't know" in await say("person zed")
+
+
+def test_parse_split():
+    from pocket.services.splits import parse_split
+
+    assert parse_split("split 60 dinner with arjun and sita") == (
+        "60 dinner",
+        ["arjun", "sita"],
+        None,
+    )
+    assert parse_split("split 45 taxi 3 ways") == ("45 taxi", [], 3)
+    assert parse_split("split 30 pizza w/ maria, kristjan & sita") == (
+        "30 pizza",
+        ["maria", "kristjan", "sita"],
+        None,
+    )
+
+
+async def test_split_flow(say):
+    r = await say("split 60 dinner with arjun and sita")
+    assert r.startswith("➗ Split €60.00 3 ways (you + Arjun, Sita):")
+    assert (
+        "€20.00 · Restaurants" in r
+        and "🤝 Lent €20.00 to Arjun" in r
+        and "🤝 Lent €20.00 to Sita" in r
+    )
+    await say("yes")
+    r = await say("owes")
+    assert "Arjun: €20.00" in r and "Sita: €20.00" in r
+    r = await say("how much this month?")
+    assert "€20.00 spent" in r
+
+
+async def test_split_remainder_stays_with_me(say):
+    r = await say("split 10 taxi 3 ways")
+    assert "€3.34 · Transport" in r
