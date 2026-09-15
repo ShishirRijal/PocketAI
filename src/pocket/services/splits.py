@@ -81,7 +81,7 @@ async def split_cmd(o: Orchestrator, t: Turn, cmd: Command) -> list[OutboundMess
             merchant=None,
             note=f"share of {what}".strip(),
             tags=[(p, "person")],
-        )  # fmt: skip
+        )
         for p in people
     ]
     names = ", ".join(p.capitalize() for p in people) or f"{n - 1} others"
