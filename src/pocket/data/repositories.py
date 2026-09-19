@@ -409,7 +409,12 @@ class RawMessageRepo:
         user_channel_id: str | None = None,
         channel_meta: dict[str, Any] | None = None,
     ) -> tuple[RawMessage, bool]:
-        """Returns (row, created). A retried webhook gets the existing row back."""
+        """Returns (row, created). A retried webhook gets the existing row back.
+
+        No SAVEPOINT here on purpose: with pysqlite a savepoint opened before any
+        DML becomes the transaction and its RELEASE commits, which would break
+        callers that roll back (dry-run imports). On a unique-key race we roll
+        the session back instead, so call this first in its own transaction."""
         existing = self.by_channel_id(channel, channel_msg_id)
         if existing:
             return existing, False
@@ -424,10 +429,10 @@ class RawMessageRepo:
             channel_meta=channel_meta,
         )
         try:
-            with self.s.begin_nested():
-                self.s.add(row)
-                self.s.flush()
+            self.s.add(row)
+            self.s.flush()
         except IntegrityError:
+            self.s.rollback()
             existing = self.by_channel_id(channel, channel_msg_id)
             assert existing is not None
             return existing, False
