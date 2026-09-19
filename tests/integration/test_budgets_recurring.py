@@ -93,3 +93,13 @@ async def test_purge_deleted(say, services, settings):
     assert purge_deleted(rt) == 1
     with services.db.session() as s:
         assert s.scalars(select(Transaction)).all() == []
+
+
+async def test_unusual_amount_nudge(say, clock):
+    for i in range(6):
+        await say(f"coffee {3 + i * 0.1:.2f}")
+        clock.advance(minutes=10)
+    r = await say("coffee 40")
+    assert "📈 That's about 12× your usual Cafes spend (typically €3.25)" in r
+    clock.advance(minutes=10)
+    assert "📈" not in await say("coffee 4")
