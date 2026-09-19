@@ -66,13 +66,21 @@ def fetch(
     labels: list[str] = []
     if plan.direction != "any":
         conds.append(Transaction.direction == plan.direction)
-    if plan.category:
-        found = _category_ids(s, user.id, plan.category)
-        if found is None:
-            return [], [f"category '{plan.category}' (not found)"]
-        ids, name = found
-        conds.append(Transaction.category_id.in_(ids))
-        labels.append(name)
+    wanted = [c for c in [plan.category, *plan.categories] if c]
+    if wanted:
+        all_ids: set[int] = set()
+        names: list[str] = []
+        for cname in dict.fromkeys(wanted):
+            found = _category_ids(s, user.id, cname)
+            if found is None:
+                continue
+            ids, name = found
+            all_ids.update(ids)
+            names.append(name)
+        if not all_ids:
+            return [], [f"category '{', '.join(wanted)}' (not found)"]
+        conds.append(Transaction.category_id.in_(sorted(all_ids)))
+        labels.append(" + ".join(names))
     if plan.merchant:
         conds.append(func.lower(Transaction.merchant) == plan.merchant.lower())
         labels.append(f"at {plan.merchant}")

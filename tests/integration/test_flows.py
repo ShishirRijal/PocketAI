@@ -260,3 +260,12 @@ async def test_new_expense_while_multi_pending(say, services):
     r = await say("lunch 12")
     assert "✅ Logged €12.00 · Restaurants" in r
     assert [t.amount_minor for t in txns(services)] == [1200]
+
+
+async def test_umbrella_query(say):
+    await say("23 eur groceries at rimi")
+    await say("lunch 12")
+    await say("coffee 3")
+    await say("metro 2")
+    r = await say("how much did i spend on food this month?")
+    assert "Groceries + Restaurants + Cafes: €38.00 spent across 3" in r

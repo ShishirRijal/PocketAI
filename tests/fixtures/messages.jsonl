@@ -30,3 +30,4 @@
 {"text": "60 dinner with friends", "intent": "ADD", "txns": [{"amount": 60, "currency": "EUR", "category": "Restaurants"}]}
 {"text": "lent 20 to arjun", "intent": "ADD", "txns": [{"amount": 20, "currency": "EUR", "direction": "lent", "tags": ["arjun"]}]}
 {"text": "at 5pm lunch 12", "intent": "ADD", "txns": [{"amount": 12, "currency": "EUR", "category": "Restaurants"}]}
+{"text": "how much did i spend on food this week?", "intent": "QUERY", "plan": {"kind": "total", "period": "this_week", "categories": ["Groceries", "Restaurants", "Cafes"], "category": null}}

@@ -137,6 +137,9 @@ class QueryPlan(BaseModel):
     start_date: str | None = Field(default=None, description="YYYY-MM-DD, only for custom")
     end_date: str | None = Field(default=None, description="YYYY-MM-DD inclusive, only for custom")
     category: str | None = None
+    categories: list[str] = Field(
+        default_factory=list, description="several categories, for umbrella words like 'food'"
+    )
     merchant: str | None = None
     tag: str | None = None
     direction: Literal["expense", "income", "any"] = "expense"

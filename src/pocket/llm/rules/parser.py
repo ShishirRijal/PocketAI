@@ -604,6 +604,19 @@ def plan_query(text: str, ctx: dict[str, Any]) -> QueryPlan:
 
     cat_name = None
     cats = _cats(ctx)
+    umbrella = {
+        "food": ["Groceries", "Restaurants", "Cafes"],
+        "eating out": ["Restaurants", "Cafes"],
+        "going out": ["Restaurants", "Cafes", "Entertainment"],
+        "bills": ["Rent", "Utilities", "Subscriptions"],
+        "khana": ["Groceries", "Restaurants", "Cafes"],
+    }
+    group: list[str] = []
+    for word, members in umbrella.items():
+        if re.search(rf"\b{word}\b", low):
+            have = {c.name for c in cats}
+            group = [m for m in members if m in have]
+            break
     for w in re.findall(r"[a-z][\w&-]+", low):
         if w in STOPWORDS or w in {"spend", "spent", "much", "how", "month", "week", "year"}:
             continue
@@ -611,7 +624,9 @@ def plan_query(text: str, ctx: dict[str, Any]) -> QueryPlan:
         if c and score >= 0.85:
             cat_name = c.name
             break
-    if not cat_name:
+    if group:
+        cat_name = None
+    elif not cat_name:
         kw = keyword_category(low)
         if kw and any(c.name == kw for c in cats):
             cat_name = kw
@@ -641,6 +656,7 @@ def plan_query(text: str, ctx: dict[str, Any]) -> QueryPlan:
         start_date=start,
         end_date=end,
         category=cat_name,
+        categories=group,
         merchant=merchant,
         tag=tag,
         direction=direction,
