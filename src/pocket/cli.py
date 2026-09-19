@@ -9,6 +9,9 @@ pocket migrate              alembic upgrade head
 pocket replay 42 [--commit] re-run a stored message
 pocket backup / restore     sqlite backups
 pocket digest               send the weekly digest now
+pocket demo --months 6      seed realistic fake history (for the dashboard)
+pocket import-v1 old.db     bring over history from the v1 telegram bot (dry run first)
+pocket export --format qif  write an export file
 pocket link whatsapp:+372…  allow another channel identity for the owner
 pocket telegram-webhook     register the telegram webhook
 pocket discord-commands     register discord slash commands
@@ -117,6 +120,12 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("discord-commands")
     dm = sub.add_parser("demo", help="fill the db with realistic fake history")
     dm.add_argument("--months", type=int, default=6)
+    iv = sub.add_parser("import-v1", help="import history from the v1 telegram bot's sqlite db")
+    iv.add_argument("path")
+    iv.add_argument(
+        "--currency", default="NPR", help="v1 had no currency column (its DEFAULT_CURRENCY)"
+    )
+    iv.add_argument("--apply", action="store_true", help="write (default is a dry run)")
     ex = sub.add_parser("export")
     ex.add_argument("--format", default="csv", choices=["csv", "json", "qif"])
     ex.add_argument("--period", default="all_time")
@@ -195,6 +204,14 @@ def main(argv: list[str] | None = None) -> None:
             print(
                 f"added {seed_demo(rt.services.db, args.months, user_id=rt.owner_id)} demo transactions"
             )
+        case "import-v1":
+            from pocket.services.import_v1 import import_v1
+
+            rt = _runtime()
+            report = import_v1(
+                rt.services.db, rt.owner_id, args.path, args.currency, apply=args.apply
+            )
+            print(report.text(args.apply))
         case "export":
             from pocket.services.exports import export_to_file
 
