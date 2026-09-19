@@ -109,7 +109,7 @@ HELP = """Pocket — just tell me what you spent.
 • every 15th 12.99 spotify · recurring
 • lent 20 to arjun · owes · person arjun
 • split 60 dinner with arjun and sita
-• export csv month · cost · digest · review
+• export csv month · cost · digest · monthly · review
 • currency eur · tz Europe/Lisbon"""
 
 CHITCHAT = (

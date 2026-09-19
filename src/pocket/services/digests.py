@@ -29,13 +29,23 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def weekly_data(db: Database, user_id: int, now: datetime | None = None) -> dict[str, Any]:
+def weekly_data(
+    db: Database, user_id: int, now: datetime | None = None, span: str = "week"
+) -> dict[str, Any]:
+    """Numbers for a recap. span="week": the last 7 days vs the 7 before;
+    span="month": last calendar month vs the one before it."""
     with db.session() as s:
         user = s.get(User, user_id)
         assert user is not None
         cur = user.base_currency
-        this = period_range("last_7_days", user.timezone, now)
-        prev_start = this.start - timedelta(days=7)
+        if span == "month":
+            this = period_range("last_month", user.timezone, now)
+            prev_start = period_range(
+                "last_month", user.timezone, this.start - timedelta(seconds=1)
+            ).start
+        else:
+            this = period_range("last_7_days", user.timezone, now)
+            prev_start = this.start - timedelta(days=7)
         rows = s.scalars(
             select(Transaction).where(
                 Transaction.user_id == user_id,
@@ -76,12 +86,15 @@ def weekly_data(db: Database, user_id: int, now: datetime | None = None) -> dict
             and v - prev_cats[k] > money.to_minor(20, cur)
         ]
         return {
+            "span": span,
+            "label": this.label,
             "currency": cur,
             "spent": money.fmt(spent, cur),
             "spent_minor": spent,
             "previous_week_spent": money.fmt(prev_spent, cur),
             "change_pct": round(100 * (spent - prev_spent) / prev_spent) if prev_spent else None,
             "income": money.fmt(income, cur) if income else None,
+            "income_minor": income,
             "transactions": len([r for r in week if r.direction == "expense"]),
             "top_categories": [{"name": k, "amount": money.fmt(v, cur)} for k, v in top],
             "biggest": {
@@ -102,12 +115,17 @@ def weekly_data(db: Database, user_id: int, now: datetime | None = None) -> dict
 
 
 def plain_digest(d: dict[str, Any]) -> str:
+    month = d.get("span") == "month"
     if not d["transactions"]:
-        return "📊 Weekly recap: nothing logged this week. Quiet week, or did I miss some? 🙂"
-    lines = [f"📊 Your week: {d['spent']} across {d['transactions']} transactions"]
+        what = f"in {d.get('label', 'last month')}" if month else "this week"
+        return f"📊 Recap: nothing logged {what}. Quiet, or did I miss some? 🙂"
+    head = f"📅 {d['label']}" if month else "📊 Your week"
+    lines = [f"{head}: {d['spent']} across {d['transactions']} transactions"]
     if d["change_pct"] is not None:
         arrow = "▲" if d["change_pct"] > 0 else "▼"
-        lines[0] += f" ({arrow}{abs(d['change_pct'])}% vs last week)"
+        lines[0] += (
+            f" ({arrow}{abs(d['change_pct'])}% vs {'the month before' if month else 'last week'})"
+        )
     if d["income"]:
         lines.append(f"Income: {d['income']}")
     if d["top_categories"]:
@@ -116,6 +134,10 @@ def plain_digest(d: dict[str, Any]) -> str:
         lines.append(f"Biggest: {d['biggest']['amount']} {d['biggest']['what']}".rstrip())
     for j in d["category_jumps"]:
         lines.append(f"Heads up: {j['name']} {j['this_week']} (last week {j['last_week']})")
+    if d.get("income") and month:
+        lines.append(
+            f"Saved: {money.fmt(d['income_minor'] - d['spent_minor'], d['currency'], sign=True)}"
+        )
     if d["to_review"]:
         lines.append(
             "Worth a look (low confidence): " + "; ".join(d["to_review"]) + ' — send "review"'
@@ -123,10 +145,10 @@ def plain_digest(d: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-async def build_digest(rt_or_orch: Any, user_id: int) -> str:
+async def build_digest(rt_or_orch: Any, user_id: int, span: str = "week") -> str:
     orch = getattr(rt_or_orch, "services", None)
     orch = orch.orchestrator if orch else rt_or_orch
-    d = weekly_data(orch.db, user_id)
+    d = weekly_data(orch.db, user_id, span=span)
     plain = plain_digest(d)
     if not d["transactions"]:
         return plain
@@ -157,23 +179,33 @@ async def send_digest(rt: Runtime, user_id: int, *, force: bool = False) -> str 
     return text
 
 
+_sent_monthly: dict[int, str] = {}
+
+
 async def send_due_digests(rt: Runtime) -> None:
-    """Runs hourly; fires for users whose local time is Sunday 20:xx."""
+    """Runs hourly. Weekly: Sunday 20:xx local. Monthly: the 1st, 09:xx local."""
     s_ = rt.settings
     with rt.services.db.session() as s:
         users = [(u.id, u.timezone) for u in s.scalars(select(User)).all()]
     for uid, tz in users:
         ln = local_now(tz)
-        if ln.weekday() == s_.digest_weekday and ln.hour == s_.digest_hour:
-            try:
+        try:
+            if ln.weekday() == s_.digest_weekday and ln.hour == s_.digest_hour:
                 await send_digest(rt, uid)
-            except Exception:
-                log.exception("digest failed for user %s", uid)
+            month_key = ln.strftime("%Y-%m")
+            if ln.day == 1 and ln.hour == 9 and _sent_monthly.get(uid) != month_key:
+                text = await build_digest(rt, uid, span="month")
+                await rt.dispatcher.send_to_user(uid, OutboundMessage(text=text))
+                _sent_monthly[uid] = month_key
+        except Exception:
+            log.exception("digest failed for user %s", uid)
 
 
 async def digest_cmd(o: Orchestrator, t: Turn, cmd: Command) -> list[OutboundMessage]:
     t.s.flush()
-    return [OutboundMessage(text=await build_digest(o, t.user.id))]
+    return [
+        OutboundMessage(text=await build_digest(o, t.user.id, span=cmd.args.get("span", "week")))
+    ]
 
 
 def install(services: Services) -> None:

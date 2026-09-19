@@ -232,6 +232,8 @@ def parse(text: str) -> Command | None:
 
     if t in {"digest", "weekly", "summary", "recap"}:
         return Command("digest")
+    if t in {"monthly", "month recap", "monthly recap", "last month recap"}:
+        return Command("digest", {"span": "month"})
     if t in {"review", "check", "unsure"}:
         return Command("review")
     if t in {"whoami", "me", "settings", "profile"}:

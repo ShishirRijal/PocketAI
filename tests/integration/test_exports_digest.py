@@ -57,3 +57,17 @@ async def test_digest_plain(say, services, clock):
 
 async def test_empty_export(say):
     assert "Nothing to export" in await say("export json today")
+
+
+async def test_monthly_recap(say, services, clock):
+    from datetime import timedelta
+
+    clock.now -= timedelta(days=30)  # log things "last month"
+    await say("23 eur groceries at rimi")
+    await say("got salary 2500")
+    clock.now += timedelta(days=30)
+    d = weekly_data(services.db, services.user_id, now=clock.now, span="month")
+    assert d["label"] == "August 2026" and d["spent"] == "€23.00"
+    text = plain_digest(d)
+    assert text.startswith("📅 August 2026: €23.00 across 1 transactions")
+    assert "Saved: +€2,477.00" in text
