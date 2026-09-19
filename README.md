@@ -118,6 +118,17 @@ src/pocket/
 
 Anyone not on the allowlist gets silence. There is no login flow; the channel identity is the auth.
 
+## Coming from Pocket v1
+
+```bash
+scp vm:/path/to/pocket-ai/data/pocket.db ./v1.db
+uv run pocket import-v1 v1.db --currency NPR          # dry run: shows what would be imported
+uv run pocket import-v1 v1.db --currency NPR --apply  # idempotent, safe to re-run
+```
+
+Expenses keep their original message text, v1 budgets become monthly budgets,
+and lendings become `lent`/`got_back` entries, so `owes` works immediately.
+
 ## Deploy
 
 ```bash
