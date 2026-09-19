@@ -154,7 +154,8 @@ def import_v1(
             minor = money.to_minor(Decimal(str(r["amount"])), currency)
             note_bits = [r["note"]] if r["note"] else []
             try:
-                items = json.loads(r["items"] or "[]") if "items" in r.keys() else []
+                # sqlite3.Row: `in row` checks values, so .keys() is needed here
+                items = json.loads(r["items"] or "[]") if "items" in r.keys() else []  # noqa: SIM118
                 if items:
                     note_bits.append(
                         "items: "
