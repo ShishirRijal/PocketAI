@@ -22,6 +22,11 @@ Pocket: This week (so far) · Groceries: €29.00 spent across 1 transaction.
 
 ![Dashboard](docs/screenshots/overview-dark.png)
 
+<p>
+  <img src="docs/screenshots/overview-light.png" width="49%" alt="Overview, light">
+  <img src="docs/screenshots/plans.png" width="49%" alt="Plans: budgets, recurring, lending">
+</p>
+
 ## What makes it more than a prompt
 
 - **A staged LLM pipeline, not one prompt.** Intent → extraction (structured JSON schema) → categorization → policy. Each stage is small, testable and has its own model chain. Anything deterministic (undo, edit 2 amount 29, show week, budgets) never touches a model.
@@ -40,8 +45,8 @@ Pocket: This week (so far) · Groceries: €29.00 spent across 1 transaction.
 | Money | integer minor units, multi-currency with base-currency conversion (ECB via frankfurter, NPR via the INR peg, fallbacks) |
 | Fixing things | `undo`, `edit`, `edit 2 amount 29`, "make that groceries", `delete 3`, "delete the coffee one", `history 1` |
 | Questions | "how much grocery this month?", "top merchants last month", "average weekday coffee spend", "breakdown by category", "how much with arjun this year" |
-| Extras | budgets with 80% nudges, recurring transactions ("every 15th 12.99 spotify"), lending tracker ("lent 20 to arjun", `owes`), weekly digest, exports (CSV/JSON/QIF), category management |
-| Dashboard | overview charts, filters (period, direction, category, merchant, tag, search, amount range, currency), transactions table with inline edit + full history, LLM cost & health |
+| Extras | budgets with 80% nudges, recurring transactions ("every 15th 12.99 spotify"), lending tracker ("lent 20 to arjun", `owes`), group splits ("split 60 dinner with arjun and sita"), person profiles, "unusually large" nudges, weekly digest, exports (CSV/JSON/QIF), category management |
+| Dashboard | overview charts, filters (period, direction, category, merchant, tag, search, amount range, currency), transactions table with edit drawer + full history, plans (budget meters, recurring, lending), LLM cost & health, a quick-log box that runs the same pipeline, installable as a PWA |
 | Ops | health/readiness checks, per-user rate limits, cost cap, nightly backups (+ Azure Blob), Redis Streams workers, Docker Compose + Caddy, CI |
 
 ## Quickstart (local, 2 minutes)
@@ -72,7 +77,8 @@ open "http://localhost:8080/app?token=dev"
 | `show today` · `show month` | quick lists |
 | `budget cafes 80` · `budgets` | soft monthly limits |
 | `every 15th 12.99 spotify` · `recurring` | recurring transactions |
-| `lent 20 to arjun` · `owes` | lending balances |
+| `lent 20 to arjun` · `owes` · `person arjun` | lending balances, people profiles |
+| `split 60 dinner with arjun and sita` | your share as an expense, the rest as loans |
 | `export csv month` | signed download link |
 | `categories` · `category rename X to Y` · `category merge X into Y` | category admin |
 | `cost` · `review` · `digest` · `currency npr` · `tz Europe/Lisbon` | the rest (`help` lists everything) |
@@ -124,7 +130,7 @@ Migrations run at container start. Data (SQLite, backups, exports) lives in `./d
 ## Development
 
 ```bash
-uv run pytest            # 120-ish tests, no network needed
+uv run pytest            # ~140 tests, no network needed
 uv run pytest -m live    # golden set against the real LLM chain (needs keys)
 uv run ruff check src tests && uv run mypy src
 ```
