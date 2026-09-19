@@ -122,6 +122,8 @@ def _period(words: str) -> str | None:
 
 def parse(text: str) -> Command | None:
     t = norm(text)
+    # telegram/discord style "/week" or "/undo@PocketBot"
+    t = re.sub(r"^/(\w+)(?:@\w+)?", r"\1", t)
     if not t:
         return None
 
@@ -165,7 +167,16 @@ def parse(text: str) -> Command | None:
         what = (m.group(1) or "today").strip()
         if p := _period(what):
             return Command("show", {"period": p})
-    if t in {"today", "this week", "this month", "last month", "last week", "yesterday"}:
+    if t in {
+        "today",
+        "this week",
+        "this month",
+        "last month",
+        "last week",
+        "yesterday",
+        "week",
+        "month",
+    }:
         return Command("show", {"period": _PERIOD_WORDS[t]})
 
     if m := re.fullmatch(r"cost(?:\s+(.+))?", t):

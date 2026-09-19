@@ -174,12 +174,9 @@ def main(argv: list[str] | None = None) -> None:
                 sys.exit("set POCKET_TELEGRAM_BOT_TOKEN and POCKET_TELEGRAM_WEBHOOK_SECRET first")
             from pocket.channels.telegram import TelegramAdapter
 
-            res = asyncio.run(
-                TelegramAdapter(s.telegram_bot_token).set_webhook(
-                    s.public_url, s.telegram_webhook_secret
-                )
-            )
-            print(res)
+            tg = TelegramAdapter(s.telegram_bot_token)
+            print(asyncio.run(tg.set_webhook(s.public_url, s.telegram_webhook_secret)))
+            print(asyncio.run(tg.set_commands()))
         case "discord-commands":
             s = get_settings()
             from pocket.channels.discord import DiscordAdapter

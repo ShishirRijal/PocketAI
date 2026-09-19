@@ -75,6 +75,19 @@ def parse_update(update: dict[str, Any]) -> InboundMessage | None:
     )
 
 
+BOT_COMMANDS = [
+    {"command": "recent", "description": "last 5 transactions (to edit/delete by number)"},
+    {"command": "undo", "description": "undo the last change (5 min)"},
+    {"command": "today", "description": "what I spent today"},
+    {"command": "week", "description": "this week so far"},
+    {"command": "month", "description": "this month so far"},
+    {"command": "budgets", "description": "budget progress"},
+    {"command": "owes", "description": "who owes whom"},
+    {"command": "digest", "description": "weekly recap now"},
+    {"command": "help", "description": "everything I understand"},
+]
+
+
 def keyboard(msg: OutboundMessage) -> dict[str, Any] | None:
     if not msg.options:
         return None
@@ -134,6 +147,12 @@ class TelegramAdapter:
         r.raise_for_status()
         path = r.json()["result"]["file_path"]
         return f"{API}/file/bot{self.token}/{path}"
+
+    async def set_commands(self) -> dict[str, Any]:
+        """The '/' menu in Telegram. Commands arrive as '/show' etc; the command
+        parser strips the slash."""
+        r = await self.client.post(self._url("setMyCommands"), json={"commands": BOT_COMMANDS})
+        return r.json()
 
     async def set_webhook(self, public_url: str, secret: str) -> dict[str, Any]:
         r = await self.client.post(
