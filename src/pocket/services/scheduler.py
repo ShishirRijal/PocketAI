@@ -111,4 +111,7 @@ def build_scheduler(rt: Runtime) -> AsyncIOScheduler:
     sched.add_job(
         purge_deleted, CronTrigger(day=1, hour=3), args=[rt], id="purge_deleted", **common
     )
+    sched.add_job(
+        purge_exports, CronTrigger(hour=3, minute=40), args=[rt], id="purge_exports", **common
+    )
     return sched
