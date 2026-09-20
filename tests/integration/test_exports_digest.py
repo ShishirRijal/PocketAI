@@ -71,3 +71,19 @@ async def test_monthly_recap(say, services, clock):
     text = plain_digest(d)
     assert text.startswith("📅 August 2026: €23.00 across 1 transactions")
     assert "Saved: +€2,477.00" in text
+
+
+def test_purge_exports(settings):
+    import os
+    import time
+    from types import SimpleNamespace
+
+    from pocket.services.scheduler import purge_exports
+
+    settings.export_dir.mkdir(parents=True, exist_ok=True)
+    old, new = settings.export_dir / "old.csv", settings.export_dir / "new.csv"
+    old.write_text("x")
+    new.write_text("y")
+    os.utime(old, (time.time() - 3 * 86400, time.time() - 3 * 86400))
+    assert purge_exports(SimpleNamespace(settings=settings)) == 1
+    assert new.exists() and not old.exists()

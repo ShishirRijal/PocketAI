@@ -44,6 +44,20 @@ def purge_llm_payloads(rt: Runtime, days: int = 30) -> int:
     return n
 
 
+def purge_exports(rt: Runtime, max_age_h: float = 48) -> int:
+    """Export links live 24h; the files don't need to outlive them by much."""
+    import time
+
+    folder = rt.settings.export_dir
+    if not folder.exists():
+        return 0
+    cutoff = time.time() - max_age_h * 3600
+    old = [p for p in folder.iterdir() if p.is_file() and p.stat().st_mtime < cutoff]
+    for p in old:
+        p.unlink()
+    return len(old)
+
+
 def purge_deleted(rt: Runtime) -> int:
     """§7.3: deletes are soft; optionally really remove them after N days."""
     days = rt.settings.purge_deleted_after_days
