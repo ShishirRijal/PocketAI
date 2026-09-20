@@ -26,6 +26,7 @@ from pocket.core.calllog import CallLog
 from pocket.core.categorize import CatRef, match_category
 from pocket.core.dates import humanize_when, local_now, resolve_occurred_at
 from pocket.core.directions import DIRECTIONS, LENDING
+from pocket.core.normalize import normalize
 from pocket.core.policy import Decision, Proposal, Thresholds, combined_confidence, decide_add
 from pocket.core.session import LastAction, Session, SessionStore
 from pocket.data.db import Database, utcnow
@@ -263,6 +264,7 @@ class Orchestrator:
     async def _route(
         self, t: Turn, text: str, media: list[MediaAttachment], location: Location | None
     ) -> list[OutboundMessage]:
+        text = normalize(text)
         if media and self.media_handler:
             t.stage("media", count=len(media))
             return await self.media_handler(self, t, media, text)
