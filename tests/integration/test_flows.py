@@ -193,7 +193,10 @@ async def test_pending_ignored_when_new_message(say, services):
 
 async def test_help_and_chitchat(say):
     assert "Pocket" in await say("help")
-    assert "money log" in await say("good morning")
+    assert "Hey!" in await say("good morning")
+    assert "Anytime" in await say("thanks!")
+    assert "Nothing waiting" in await say("yes")
+    assert "money log" in await say("what's the weather like")
 
 
 async def test_show_today(say):

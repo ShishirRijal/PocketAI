@@ -112,6 +112,24 @@ HELP = """Pocket — just tell me what you spent.
 • export csv month · cost · digest · monthly · review
 • currency eur · tz Europe/Lisbon"""
 
+
+def small_talk(text: str) -> str | None:
+    """Cheap canned replies for the obvious ones, before spending an LLM call."""
+    import re
+
+    t = text.strip().lower().rstrip("!.🙏 ")
+    if re.fullmatch(
+        r"(thanks|thank you|thx|ty|dhanyabad|dhanyavaad|cheers|great|nice|cool|perfect)( pocket)?",
+        t,
+    ):
+        return "👍 Anytime."
+    if re.fullmatch(
+        r"(hi|hey|hello|yo|namaste|namaskar|good (morning|evening|afternoon))( pocket)?", t
+    ):
+        return 'Hey! 👋 Tell me what you spent ("12 lunch at wolt") or ask "how much this week?".'
+    return None
+
+
 CHITCHAT = (
     'I only keep your money log 🙂 Tell me something like "12 eur lunch" '
     'or ask "how much this week?". Send "help" for everything I can do.'

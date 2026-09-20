@@ -282,6 +282,12 @@ class Orchestrator:
         if cmd:
             t.stage("command", name=cmd.name)
             return await self._command(t, cmd)
+        if commands.is_yes(text) or commands.is_no(text):
+            t.outcome = "chitchat"
+            return [out("Nothing waiting for a yes or no right now 🙂")]
+        if small_talk := render.small_talk(text):
+            t.outcome = "chitchat"
+            return [out(small_talk)]
 
         intent = await self.pipeline.intent(text, self._uctx(t))
         t.stage("intent", intent=intent.intent.value, confidence=intent.confidence)

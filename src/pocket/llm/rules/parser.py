@@ -286,12 +286,26 @@ _EDIT = re.compile(
 )
 
 
+_MONEY_CONTEXT = re.compile(
+    r"\b(spen[dt]|spending|cost|costs|paid|pay|much|total|sum|kharcha|kati|expenses?|income|earn(ed)?|"
+    r"salary|budget|owe|owes|transactions?|bought|buy|merchants?|categor(y|ies)|average|avg|biggest|"
+    r"largest|top|breakdown|save[d]?|money|eur|euros?|rupees?|rs|npr|usd|dollars?)\b",
+    re.I,
+)
+
+
+def _money_context(t: str) -> bool:
+    return bool(_MONEY_CONTEXT.search(t) or keyword_category(t) or find_merchant(t))
+
+
 def classify_intent(text: str) -> IntentResult:
     t = text.strip()
     if _HELP.match(t):
         return IntentResult(intent=Intent.HELP, confidence=0.99)
     amounts = find_amounts(t)
-    if _QUERY_START.match(t) or (_QUERY_ANY.search(t) and not amounts):
+    if (_QUERY_START.match(t) or (_QUERY_ANY.search(t) and not amounts)) and (
+        amounts or _money_context(t) or re.match(r"^\s*(show|list)\b", t, re.I)
+    ):
         return IntentResult(intent=Intent.QUERY, confidence=0.9 if not amounts else 0.7)
     if _DELETE.search(t):
         return IntentResult(intent=Intent.DELETE, confidence=0.85)
@@ -299,7 +313,7 @@ def classify_intent(text: str) -> IntentResult:
         return IntentResult(intent=Intent.EDIT, confidence=0.85 if amounts else 0.7)
     if amounts:
         return IntentResult(intent=Intent.ADD, confidence=0.9)
-    if t.endswith("?"):
+    if t.endswith("?") and _money_context(t):
         return IntentResult(intent=Intent.QUERY, confidence=0.6)
     return IntentResult(intent=Intent.CHITCHAT, confidence=0.7)
 
