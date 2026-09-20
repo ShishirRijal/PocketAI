@@ -870,3 +870,69 @@ async def stop_recurring(
             raise HTTPException(404)
         r.active = False
         return {"stopped": True}
+
+
+# ------------------------------------------------------------------ categories admin
+
+
+@router.get("/categories")
+async def list_categories(
+    request: Request, user: User = Depends(require_user)
+) -> list[dict[str, Any]]:
+    with rt(request).services.db.session() as s:
+        counts = dict(
+            s.execute(
+                select(Transaction.category_id, func.count(Transaction.id))
+                .where(Transaction.user_id == user.id, Transaction.deleted_at.is_(None))
+                .group_by(Transaction.category_id)
+            ).all()
+        )
+        return [
+            {
+                "id": c.id,
+                "name": c.full_name,
+                "parent_id": c.parent_id,
+                "count": counts.get(c.id, 0),
+            }
+            for c in CategoryRepo(s).active(user.id)
+        ]
+
+
+class CategoryPatch(BaseModel):
+    name: str | None = None
+    merge_into: int | None = None
+    archive: bool = False
+
+
+@router.patch("/categories/{cat_id}")
+async def patch_category(
+    request: Request, cat_id: int, body: CategoryPatch, user: User = Depends(require_user)
+) -> dict[str, Any]:
+    with rt(request).services.db.session() as s:
+        repo = CategoryRepo(s)
+        c = repo.get(user.id, cat_id)
+        if not c:
+            raise HTTPException(404)
+        if body.merge_into is not None:
+            dst = repo.get(user.id, body.merge_into)
+            if not dst or dst.id == c.id:
+                raise HTTPException(400, "bad merge target")
+            txns = TransactionRepo(s)
+            rows = s.scalars(select(Transaction).where(Transaction.category_id == c.id)).all()
+            for r in rows:
+                txns.update(
+                    r,
+                    {"category_id": dst.id},
+                    changed_by="user",
+                    reason=f"merge {c.name} into {dst.name}",
+                )
+            repo.archive(c)
+            return {"moved": len(rows)}
+        if body.name:
+            other = repo.by_name(user.id, body.name)
+            if other and other.id != c.id:
+                raise HTTPException(409, "a category with that name exists; merge instead")
+            repo.rename(c, body.name)
+        if body.archive:
+            repo.archive(c)
+        return {"id": c.id, "name": c.full_name, "archived": c.archived_at is not None}

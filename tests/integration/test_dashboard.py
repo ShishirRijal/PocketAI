@@ -142,3 +142,26 @@ def test_plans(client):
     p = client.get("/api/v1/plans", headers=H).json()
     assert all(r["amount_minor"] != 777 for r in p["recurring"])
     assert all(b["category"] != "Cafes" for b in p["budgets"])
+
+
+def test_category_admin(client):
+    cats = {c["name"]: c for c in client.get("/api/v1/categories", headers=H).json()}
+    assert cats["Groceries"]["count"] > 0
+    r = client.patch(
+        f"/api/v1/categories/{cats['Cafes']['id']}", json={"name": "Coffee"}, headers=H
+    )
+    assert r.json()["name"] == "Coffee"
+    assert (
+        client.patch(
+            f"/api/v1/categories/{cats['Cafes']['id']}", json={"name": "Groceries"}, headers=H
+        ).status_code
+        == 409
+    )
+    moved = client.patch(
+        f"/api/v1/categories/{cats['Cafes']['id']}",
+        json={"merge_into": cats["Restaurants"]["id"]},
+        headers=H,
+    ).json()["moved"]
+    assert moved > 0
+    names = {c["name"] for c in client.get("/api/v1/categories", headers=H).json()}
+    assert "Coffee" not in names

@@ -561,6 +561,48 @@ async function loadPlans() {
   )));
 }
 
+async function loadCategoryAdmin() {
+  const cats = await api("/categories");
+  const body = $("#cat-admin tbody");
+  const refreshAll = async () => {
+    state.facets = await api("/facets");
+    fillFacets();
+    loadPlans();
+  };
+  body.replaceChildren(...cats.map((c) => {
+    const merge = el("select", { "aria-label": `Merge ${c.name} into` },
+      el("option", { value: "", text: "—" }),
+      ...cats.filter((o) => o.id !== c.id).map((o) => el("option", { value: o.id, text: o.name })));
+    merge.addEventListener("change", async () => {
+      if (!merge.value) return;
+      const target = cats.find((o) => String(o.id) === merge.value);
+      if (!confirm(`Move all ${c.count} “${c.name}” transactions into “${target.name}” and archive “${c.name}”?`)) { merge.value = ""; return; }
+      const r = await api(`/categories/${c.id}`, { method: "PATCH", body: { merge_into: Number(merge.value) } });
+      toast(`Moved ${r.moved} transactions`);
+      refreshAll();
+    });
+    return el("tr", {},
+      el("td", { text: c.name }),
+      el("td", { class: "num", text: c.count }),
+      el("td", {}, merge),
+      el("td", {},
+        el("button", { class: "link", type: "button", text: "rename", onclick: async () => {
+          const name = prompt("New name", c.name);
+          if (!name || name === c.name) return;
+          try { await api(`/categories/${c.id}`, { method: "PATCH", body: { name } }); toast("Renamed"); refreshAll(); }
+          catch (e) { toast(e.message.includes("409") ? "That name exists, merge instead" : `Couldn't rename: ${e.message}`); }
+        } }),
+        el("button", { class: "link", type: "button", text: "archive", onclick: async () => {
+          if (!confirm(`Archive “${c.name}”? Old transactions keep it.`)) return;
+          await api(`/categories/${c.id}`, { method: "PATCH", body: { archive: true } });
+          toast("Archived");
+          refreshAll();
+        } }),
+      ),
+    );
+  }));
+}
+
 // ------------------------------------------------------------------ system
 
 async function loadSystem() {
@@ -743,7 +785,7 @@ async function refresh() {
     } else if (state.tab === "transactions") {
       await loadTransactions();
     } else if (state.tab === "plans") {
-      await loadPlans();
+      await Promise.all([loadPlans(), loadCategoryAdmin()]);
     } else {
       await loadSystem();
     }
