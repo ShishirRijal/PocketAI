@@ -1,16 +1,14 @@
 FROM python:3.12-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_NO_CACHE=1
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project --extra postgres
+RUN uv sync --frozen --no-dev --no-install-project --extra postgres
 COPY README.md alembic.ini ./
 COPY config ./config
 COPY src ./src
 COPY deploy ./deploy
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra postgres
+RUN uv sync --frozen --no-dev --extra postgres
 
 FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends sqlite3 curl tini \
