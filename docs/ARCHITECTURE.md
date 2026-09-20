@@ -50,6 +50,8 @@ worker=N` works. Un-acked entries are reclaimed with `XAUTOCLAIM`.
 
 `core/orchestrator.py` is a state machine, in this order:
 
+0. **Normalize** (`core/normalize.py`): NFKC, zero-width chars, smart quotes, email/phone signatures, Devanagari digits (२५० → 250). The stored raw message is untouched.
+
 1. **Media?** Photos go to the receipt (vision) stage and voice notes to transcription, then the text path. Always confirmed.
 2. **Pending action?** Kinds are `confirm_add`, `confirm_category`, `confirm_duplicate`, `choose_target`, `confirm_delete`. A reply that isn't an answer ("how much this week?") clears the pending action and is handled fresh, so the bot never gets stuck in a question.
 3. **Deterministic command?** (`core/commands.py`): undo, edit/delete by number, show, budgets, recurring, export, categories, settings... No LLM, so these work during outages and when the cost cap is hit.
