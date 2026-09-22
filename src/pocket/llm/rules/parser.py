@@ -268,7 +268,7 @@ _HELP = re.compile(
 )
 _QUERY_START = re.compile(
     r"^\s*(how much|how many|how's|what|what's|whats|show|list|total|top|average|avg|sum|"
-    r"where|which|when|kati|kun|kasari|spent|spending|breakdown|summary|summarize|compare|"
+    r"where|which|when|kati|kun|kasari|spending|breakdown|summary|summarize|compare|"
     r"biggest|largest|most)\b",
     re.I,
 )
