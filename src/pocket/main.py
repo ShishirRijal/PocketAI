@@ -45,7 +45,16 @@ def create_app(
         finally:
             await rt.stop()
 
-    app = FastAPI(title="Pocket", version=__version__, lifespan=lifespan)
+    prod = settings.env == "prod"
+    app = FastAPI(
+        title="Pocket",
+        version=__version__,
+        lifespan=lifespan,
+        # no public API explorer in prod; the api is documented in the README
+        docs_url=None if prod else "/docs",
+        redoc_url=None,
+        openapi_url=None if prod else "/openapi.json",
+    )
     app.include_router(health.router)
     app.include_router(webhooks.router)
     app.include_router(admin.router)
