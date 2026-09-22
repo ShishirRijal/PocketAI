@@ -1,0 +1,26 @@
+{"text": "grabbed a flat white 3.80 at costa", "intent": "ADD", "txns": [{"amount": 3.8, "currency": "EUR", "category": "Cafes"}]}
+{"text": "uber to the office, 17.5", "intent": "ADD", "txns": [{"amount": 17.5, "currency": "EUR", "category": "Transport"}]}
+{"text": "ordered sushi on wolt 28,90", "intent": "ADD", "txns": [{"amount": 28.9, "currency": "EUR", "category": "Restaurants"}]}
+{"text": "phone bill 19.99 telia", "intent": "ADD", "txns": [{"amount": 19.99, "currency": "EUR", "category": "Utilities"}]}
+{"text": "movie night 12.50 and popcorn 6", "intent": "ADD", "txns": [{"amount": 12.5, "currency": "EUR", "category": "Entertainment"}, {"amount": 6, "currency": "EUR"}]}
+{"text": "£8 lunch in london", "intent": "ADD", "txns": [{"amount": 8, "currency": "GBP", "category": "Restaurants"}]}
+{"text": "₹450 dosa", "intent": "ADD", "txns": [{"amount": 450, "currency": "INR", "category": "Restaurants"}]}
+{"text": "got a refund of 30 from zalando", "intent": "ADD", "txns": [{"amount": 30, "currency": "EUR", "direction": "income"}]}
+{"text": "friday drinks 24", "intent": "ADD", "txns": [{"amount": 24, "currency": "EUR", "category": "Restaurants"}]}
+{"text": "electricity 42.10", "intent": "ADD", "txns": [{"amount": 42.1, "currency": "EUR", "category": "Utilities"}]}
+{"text": "books for the course 18", "intent": "ADD", "txns": [{"amount": 18, "currency": "EUR", "category": "Education"}]}
+{"text": "hijo bus ma 25 rs", "intent": "ADD", "txns": [{"amount": 25, "currency": "NPR", "category": "Transport"}]}
+{"text": "aaja tarkari 150 rupaiya", "intent": "ADD", "txns": [{"amount": 150, "currency": "NPR", "category": "Groceries"}]}
+{"text": "spent 12 on coffee and cake with maria at kohvik", "intent": "ADD", "txns": [{"amount": 12, "currency": "EUR", "category": "Cafes"}]}
+{"text": "sold my old bike for 120", "intent": "ADD", "txns": [{"amount": 120, "currency": "EUR", "direction": "income"}]}
+{"text": "rent 700 paid", "intent": "ADD", "txns": [{"amount": 700, "currency": "EUR", "category": "Rent"}]}
+{"text": "vitamins at the apteek, 14.99", "intent": "ADD", "txns": [{"amount": 14.99, "currency": "EUR", "category": "Health"}]}
+{"text": "flight to kathmandu 612", "intent": "ADD", "txns": [{"amount": 612, "currency": "EUR", "category": "Travel"}]}
+{"text": "how much on transport last month?", "intent": "QUERY"}
+{"text": "what's my biggest expense this year", "intent": "QUERY"}
+{"text": "remove the uber one", "intent": "DELETE"}
+{"text": "no wait, it was 32", "intent": "EDIT"}
+{"text": "change the category of the last one to travel", "intent": "EDIT"}
+{"text": "thank you!", "intent": "CHITCHAT"}
+{"text": "what can you do?", "intent": "HELP"}
+{"text": "yo whats up", "intent": "CHITCHAT"}

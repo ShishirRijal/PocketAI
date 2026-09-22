@@ -12,6 +12,7 @@ pocket digest               send the weekly digest now
 pocket demo --months 6      seed realistic fake history (for the dashboard)
 pocket import-v1 old.db     bring over history from the v1 telegram bot (dry run first)
 pocket export --format qif  write an export file
+pocket eval                 golden-set accuracy/latency/cost per model
 pocket link whatsapp:+372…  allow another channel identity for the owner
 pocket telegram-webhook     register the telegram webhook
 pocket discord-commands     register discord slash commands
@@ -120,6 +121,9 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("discord-commands")
     dm = sub.add_parser("demo", help="fill the db with realistic fake history")
     dm.add_argument("--months", type=int, default=6)
+    ev = sub.add_parser("eval", help="golden-set bake-off across models")
+    ev.add_argument("--models", help="comma separated, default: the configured candidates")
+    ev.add_argument("--out", help="write the markdown report here")
     iv = sub.add_parser("import-v1", help="import history from the v1 telegram bot's sqlite db")
     iv.add_argument("path")
     iv.add_argument(
@@ -204,6 +208,15 @@ def main(argv: list[str] | None = None) -> None:
             print(
                 f"added {seed_demo(rt.services.db, args.months, user_id=rt.owner_id)} demo transactions"
             )
+        case "eval":
+            from pathlib import Path
+
+            from pocket.logging_setup import setup_logging
+            from pocket.services.evaluate import run_cli
+
+            setup_logging("ERROR")
+            models = [m.strip() for m in args.models.split(",")] if args.models else None
+            print(run_cli(models, get_settings(), Path(args.out) if args.out else None))
         case "import-v1":
             from pocket.services.import_v1 import import_v1
 
