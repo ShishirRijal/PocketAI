@@ -66,6 +66,7 @@ class ModelScore:
             "p95_ms": round(lat[min(len(lat) - 1, int(0.95 * len(lat)))] * 1000) if lat else None,
             "cost_usd": round(self.cost, 5),
             "errors": self.errors,
+            "n": self.intents,
         }
 
 
@@ -95,6 +96,37 @@ def _pipeline_for(model: str, settings: Settings, sink) -> Pipeline:
     return Pipeline(router)
 
 
+class _Pacer:
+    """Keeps a model under its configured free-tier rpm and retries 429/503s,
+    so the bake-off measures answers, not rate limits."""
+
+    def __init__(self, model: str, settings: Settings, pipe: Pipeline, retries: int = 3):
+        self.pipe = pipe
+        quotas = RouterConfig.from_yaml(settings.llm_config_path).quotas
+        rpm = (quotas.get(model) or {}).get("rpm")
+        self.interval = 60 / rpm * 1.1 if rpm else 0.0
+        self.retries = retries
+        self.next_at = 0.0
+        self.last_start = 0.0
+
+    async def call(self, fn, *args):
+        for attempt in range(self.retries + 1):
+            wait = self.next_at - time.monotonic()
+            if wait > 0:
+                await asyncio.sleep(wait)
+            self.next_at = time.monotonic() + self.interval
+            self.last_start = time.perf_counter()
+            try:
+                return await fn(*args)
+            except LLMUnavailable:
+                if attempt == self.retries:
+                    return None
+                # the router benched the model after a 429; un-bench and back off
+                self.pipe.router.quota._exhausted_until.clear()
+                await asyncio.sleep(min(60, 8 * 2**attempt))
+        return None
+
+
 async def evaluate(
     models: list[str], settings: Settings, cases: list[dict] | None = None
 ) -> list[ModelScore]:
@@ -109,29 +141,27 @@ async def evaluate(
             scores.append(score)
             continue
         u = _ctx()
+        pacer = _Pacer(model, settings, pipe)
         for case in cases:
-            score.intents += 1
-            t0 = time.perf_counter()
-            try:
-                intent = await pipe.intent(case["text"], u)
-            except LLMUnavailable:
+            intent = await pacer.call(pipe.intent, case["text"], u)
+            if intent is None:
+                # provider errors (429/503) aren't the model being wrong; keep them apart
                 score.errors += 1
                 continue
-            score.latencies.append(time.perf_counter() - t0)
+            score.intents += 1
+            score.latencies.append(time.perf_counter() - pacer.last_start)
             if intent.intent.value == case["intent"]:
                 score.intents_ok += 1
             else:
                 score.misses.append(f"intent: {case['text']!r} -> {intent.intent.value}")
             if "txns" not in case:
                 continue
-            score.extracts += 1
-            t0 = time.perf_counter()
-            try:
-                res = await pipe.extract(case["text"], u)
-            except LLMUnavailable:
+            res = await pacer.call(pipe.extract, case["text"], u)
+            if res is None:
                 score.errors += 1
                 continue
-            score.latencies.append(time.perf_counter() - t0)
+            score.extracts += 1
+            score.latencies.append(time.perf_counter() - pacer.last_start)
             got = res.transactions
             ok = len(got) == len(case["txns"]) and all(
                 abs(g.amount - w["amount"]) < 0.005
@@ -157,16 +187,19 @@ async def evaluate(
 
 def render_markdown(scores: list[ModelScore], n_cases: int) -> str:
     rows = [s.row() for s in scores]
-    head = "| model | intent | extraction | category | p50 | p95 | cost |\n|---|---|---|---|---|---|---|"
+    head = (
+        "| model | intent | extraction | category | p50 | p95 | cost | provider errors |\n"
+        "|---|---|---|---|---|---|---|---|"
+    )
     lines = []
     for r in rows:
         if r["errors"] == -1:
-            lines.append(f"| `{r['model']}` | no credentials | | | | | |")
+            lines.append(f"| `{r['model']}` | no credentials | | | | | | |")
             continue
         fmt = lambda v, suf="%": "—" if v is None else f"{v}{suf}"  # noqa: E731
         lines.append(
             f"| `{r['model']}` | {fmt(r['intent_%'])} | {fmt(r['extract_%'])} | {fmt(r['category_%'])} "
-            f"| {fmt(r['p50_ms'], ' ms')} | {fmt(r['p95_ms'], ' ms')} | ${r['cost_usd']:.4f} |"
+            f"| {fmt(r['p50_ms'], ' ms')} | {fmt(r['p95_ms'], ' ms')} | ${r['cost_usd']:.4f} | {r['errors']} |"
         )
     return f"{n_cases} golden messages, {datetime.now():%Y-%m-%d}.\n\n{head}\n" + "\n".join(lines)
 
