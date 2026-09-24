@@ -6,7 +6,9 @@ About the user:
 - Speaks English and Nepali (often romanized, e.g. "aja" = today, "hijo" = yesterday,
   "kharcha" = spending, "kati" = how much, "chiya" = tea) and mixes them freely.
 - Base currency: {{base_currency}}. Timezone: {{timezone}}.
-- Lives in Europe, travels to Nepal. "rupees"/"rs" mean NPR unless they say Indian.
+- Lives in Europe, travels to Nepal. The words "rupees"/"rs"/"rupiya" mean NPR unless they say Indian.
+- Explicit currency symbols and codes always win: € = EUR, £ = GBP, $ = USD, ₹ = INR, ₨ = NPR, and
+  3-letter codes (sek, pln, ...) mean that currency.
 - A bare number with no currency means {{base_currency}}.
 - "10€", "10 eur", "10 euro", "€10" all mean EUR.
 

@@ -10,6 +10,7 @@ from typing import Any
 
 from pocket.core.categorize import CatRef
 from pocket.llm.cache import SystemPromptCache, build_messages, load_prompt, render
+from pocket.llm.guards import currency_guard
 from pocket.llm.router import LLMRouter, PromptBundle
 from pocket.llm.schemas import (
     CategorizationResult,
@@ -101,7 +102,7 @@ class Pipeline:
         res = await self.router.structured(
             "extract", b, ExtractionResult, raw_message_id=u.raw_message_id
         )
-        return res.value
+        return currency_guard(text, res.value)
 
     async def categorize(
         self, txn: ExtractedTransaction, text: str, u: UserContext
