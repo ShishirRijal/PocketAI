@@ -226,8 +226,8 @@ async def test_admin_replay_is_dry_run(client, services, rt):
 
 
 def test_docs_hidden_in_prod(settings, services):
-    settings.env = "prod"
     rt = build_runtime(settings, services=services)
+    settings.env = "prod"  # after build_runtime, which would otherwise run real migrations
     with TestClient(create_app(settings, runtime=rt, run_worker=False, run_scheduler=False)) as c:
         assert c.get("/docs").status_code == 404
         assert c.get("/openapi.json").status_code == 404
