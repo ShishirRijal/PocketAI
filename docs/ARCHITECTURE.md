@@ -101,6 +101,10 @@ proposals instead of the saved transactions, then asking again.
   - daily cost cap hit → only `free` backends run (the offline rules parser)
 - **Backends by model prefix:** `rules/*` (offline parser), `fake/*` (tests), everything else via LiteLLM. Models without credentials are skipped, so the same config works with any subset of keys.
 - **`rules/v1`** (`llm/rules/`) implements every stage deterministically: currency/amount lexer (€, eur, rs, rupees, 1.2k, 6,50, 1,200), multi-transaction splitting, dates (aja/hijo/yesterday/on friday/15 sep/3 days ago), merchants, people, lending verbs, query planning. It's the last fallback everywhere, and the default with no keys.
+- **Guards** (`llm/guards.py`) check extraction output deterministically before policy sees it:
+  an explicit currency token in the text ("£8", "₹450", "30 npr") overrides the model's
+  currency, and an amount that doesn't appear among the message's numbers gets its
+  confidence capped at 0.5, so Pocket asks instead of saving a hallucinated number.
 - **Prompts** live in `llm/prompts/*.md`. Layout is `[system: persona + profile + categories]` `[system: stage instructions]` `[user: message]`, so the prefix is stable per user per day for implicit prompt caching (Gemini/OpenAI). Anthropic models get explicit `cache_control`.
 - **Every attempt** is logged to `llm_calls`: request, response, tokens, latency, cost, error kind. Calls are buffered per message and written after the transaction, so SQLite's single writer isn't contended mid-turn.
 
