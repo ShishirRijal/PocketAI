@@ -23,3 +23,18 @@ def currency_guard(text: str, result: ExtractionResult) -> ExtractionResult:
             t.currency = cur
             t.reasoning = (t.reasoning + f" [currency corrected to {cur} from the text]").strip()
     return result
+
+
+def amount_guard(text: str, result: ExtractionResult, *, cap: float = 0.5) -> ExtractionResult:
+    """ "Never invent amounts": when the message has numbers but a proposed
+    amount isn't one of them, cap its confidence so policy asks first.
+    Messages without digits ("twelve euro lunch") can't be checked this way
+    and are left alone."""
+    if not any(ch.isdigit() for ch in text):
+        return result
+    seen = {round(a.value, 2) for a in find_amounts(text)}
+    for t in result.transactions:
+        if round(t.amount, 2) not in seen and t.confidence > cap:
+            t.confidence = cap
+            t.reasoning = (t.reasoning + " [amount not found in the message]").strip()
+    return result

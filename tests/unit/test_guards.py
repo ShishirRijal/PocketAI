@@ -22,3 +22,14 @@ def test_leaves_bare_numbers_alone():
 def test_multi():
     r = currency_guard("coffee 3 eur and chiya 30 rs", _res((3, "EUR"), (30, "EUR")))
     assert [t.currency for t in r.transactions] == ["EUR", "NPR"]
+
+
+def test_amount_guard():
+    from pocket.llm.guards import amount_guard
+
+    ok = amount_guard("lunch 12.50", _res((12.5, "EUR")))
+    assert ok.transactions[0].confidence == 0.9
+    bad = amount_guard("lunch 12.50", _res((125, "EUR")))
+    assert bad.transactions[0].confidence == 0.5
+    assert amount_guard("dinner 1.2k rs", _res((1200, "NPR"))).transactions[0].confidence == 0.9
+    assert amount_guard("twelve euro lunch", _res((12, "EUR"))).transactions[0].confidence == 0.9
