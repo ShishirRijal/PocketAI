@@ -244,3 +244,19 @@ class RecurringRule(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     category: Mapped[Category | None] = relationship(lazy="joined")
+
+
+class Goal(Base):
+    """Savings goal. Contributions are `transfer` transactions tagged goal-<slug>."""
+
+    __tablename__ = "goals"
+    __table_args__ = (UniqueConstraint("user_id", "slug"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(80))
+    slug: Mapped[str] = mapped_column(String(64))
+    target_minor: Mapped[int] = mapped_column(Integer)  # base currency
+    due: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    done_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
