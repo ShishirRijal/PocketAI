@@ -165,3 +165,10 @@ def test_category_admin(client):
     assert moved > 0
     names = {c["name"] for c in client.get("/api/v1/categories", headers=H).json()}
     assert "Coffee" not in names
+
+
+def test_plans_goals(client):
+    client.post("/api/v1/say", json={"text": "goal japan 2000 by march"}, headers=H)
+    client.post("/api/v1/say", json={"text": "save 500 japan"}, headers=H)
+    [g] = client.get("/api/v1/plans", headers=H).json()["goals"]
+    assert g["saved_minor"] == 50000 and g["target_minor"] == 200000

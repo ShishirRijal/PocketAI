@@ -787,6 +787,16 @@ async def plans(request: Request, user: User = Depends(require_user)) -> dict[st
             ).all()
         ]
         owed = balances(s, user.id)
+        from pocket.data.models import Goal
+        from pocket.services.goals import progress
+
+        today = datetime.now(tz).date()
+        goals = [
+            progress(s, u, g, today)
+            for g in s.scalars(
+                select(Goal).where(Goal.user_id == user.id, Goal.done_at.is_(None))
+            ).all()
+        ]
     monthly_fixed = sum(
         r["amount_minor"]
         * {"monthly": 1, "weekly": 52 / 12, "daily": 30.4, "yearly": 1 / 12}[r["cadence"]]
@@ -802,6 +812,7 @@ async def plans(request: Request, user: User = Depends(require_user)) -> dict[st
             {"person": p, "owed_to_me_minor": v}
             for p, v in sorted(owed.items(), key=lambda kv: -abs(kv[1]))
         ],
+        "goals": goals,
     }
 
 

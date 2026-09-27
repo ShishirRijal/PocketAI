@@ -544,6 +544,19 @@ async function loadPlans() {
     el("span", {}, el("span", { class: "muted", text: l.owed_to_me_minor > 0 ? "owes you " : "you owe " }), el("span", { class: "amt", text: m(Math.abs(l.owed_to_me_minor)) })),
   )));
 
+  const gh = $("#goals");
+  if (!p.goals.length) gh.replaceChildren(el("div", { class: "empty", text: "No goals. Say “goal japan 2000 by march”." }));
+  else gh.replaceChildren(...p.goals.map((g) => {
+    const frac = g.saved_minor / g.target_minor;
+    return el("div", { class: "lend-row", style: "flex-direction:column;gap:6px" },
+      el("div", { style: "display:flex;justify-content:space-between" },
+        el("span", { text: g.name }), el("span", { class: "amt", text: `${m(g.saved_minor, { whole: true })} / ${m(g.target_minor, { whole: true })}` })),
+      el("div", { class: "meter", role: "meter", "aria-valuenow": g.saved_minor, "aria-valuemax": g.target_minor, "aria-label": g.name },
+        el("span", { style: `width:${Math.min(100, frac * 100).toFixed(1)}%` })),
+      el("div", { class: "muted", style: "font-size:12px", text: g.left_minor === 0 ? "reached 🎉" : g.per_month_minor ? `${m(g.per_month_minor)}/month to make ${fmtDate(`${g.due}T12:00:00`)}` : `${m(g.left_minor)} to go` }),
+    );
+  }));
+
   $("#fixed-note").textContent = p.recurring.length ? `≈ ${m(p.monthly_fixed_minor)} per month in fixed costs` : "";
   const rb = $("#recurring tbody");
   if (!p.recurring.length) rb.replaceChildren(el("tr", {}, el("td", { colspan: 5, class: "empty", text: "Nothing recurring yet" })));
