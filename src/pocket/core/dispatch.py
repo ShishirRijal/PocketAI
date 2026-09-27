@@ -45,24 +45,30 @@ class Dispatcher:
     async def send_to_user(
         self, user_id: int, message: OutboundMessage, channel: str | None = None
     ) -> bool:
-        """Proactive messages (digest, reminders). Goes to the user's primary channel."""
+        """Proactive messages (digest, reminders). Tries the user's primary channel
+        first, then any other linked one. WhatsApp only allows free-form messages
+        within 24h of the user's last message, so a Sunday digest can bounce there
+        and still arrive on Telegram."""
         with self.db.session() as s:
             user = UserRepo(s).get(user_id)
             if user is None:
                 return False
-            order = [
-                c
-                for c in (channel, user.primary_channel, "whatsapp", "telegram", "discord", "cli")
-                if c
-            ]
-            for ch in order:
+            order = [channel, user.primary_channel, "whatsapp", "telegram", "discord", "cli", "web"]
+            targets: list[tuple[str, str]] = []
+            for ch in dict.fromkeys(c for c in order if c):
                 ucid = UserRepo(s).identity_for(user_id, ch)
                 if ucid and ch in self.adapters:
-                    break
-            else:
-                log.warning("user %s has no reachable channel", user_id)
-                return False
-        return await send_with_retry(self.adapters[ch], ucid, message, None)
+                    targets.append((ch, ucid))
+        if not targets:
+            log.warning("user %s has no reachable channel", user_id)
+            return False
+        for ch, ucid in targets:
+            if await send_with_retry(self.adapters[ch], ucid, message, None, attempts=2):
+                return True
+            log.warning(
+                "proactive message to user %s failed on %s, trying next channel", user_id, ch
+            )
+        return False
 
 
 async def send_with_retry(
