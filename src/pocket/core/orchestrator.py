@@ -63,7 +63,7 @@ YES_NO = [("yes", "✅ Yes"), ("no", "❌ No")]
 
 READ_ONLY_COMMANDS = frozenset(
     {"categories", "tags", "cost", "settings", "review", "history", "budgets", "recurring",
-     "lending", "person", "digest", "export"}
+     "lending", "person", "digest", "export", "goals"}
 )  # fmt: skip
 
 

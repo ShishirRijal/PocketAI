@@ -142,6 +142,7 @@ def _install_features(services: Services) -> None:
         "pocket.services.people",
         "pocket.services.splits",
         "pocket.services.insights",
+        "pocket.services.goals",
         "pocket.services.media",
     ):
         try:

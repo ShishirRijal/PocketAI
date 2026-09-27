@@ -240,6 +240,36 @@ def parse(text: str) -> Command | None:
         return Command("settings")
     if t in {"owes", "who owes me", "debts", "loans", "lending"}:
         return Command("lending")
+    if t in {"goals", "goal", "savings", "goal list"}:
+        return Command("goals")
+    if m := re.fullmatch(r"goal\s+(?:done|reached|close|remove)\s+(.+)", t):
+        return Command("goal_done", {"name": m.group(1)})
+    if m := re.fullmatch(
+        r"goal\s+(.+?)\s+(\d+(?:[.,]\d{1,2})?)(?:\s+(?:by|before|until)\s+(.+))?", t
+    ):
+        return Command(
+            "goal_add",
+            {
+                "name": _orig_tail(text, m.group(1)),
+                "amount": m.group(2).replace(",", "."),
+                "by": m.group(3),
+            },
+        )
+    if m := re.fullmatch(
+        r"(?:save|saved|put|add)\s+(\d+(?:[.,]\d{1,2})?)\s+(?:(?:to|for|into|in|towards)\s+)?(?:the\s+)?([a-z][\w -]{0,40}?)(?:\s+goal)?",
+        t,
+    ):
+        return Command(
+            "goal_save", {"amount": m.group(1).replace(",", "."), "name": m.group(2), "text": text}
+        )
+    if m := re.fullmatch(
+        r"(?:withdraw|took out|take out)\s+(\d+(?:[.,]\d{1,2})?)\s+(?:from\s+)?(?:the\s+)?([a-z][\w -]{0,40}?)(?:\s+goal)?",
+        t,
+    ):
+        return Command(
+            "goal_save",
+            {"amount": m.group(1).replace(",", "."), "name": m.group(2), "withdraw": True},
+        )
     if re.match(r"^split\s+\S", t):
         return Command("split", {"text": text.strip()})
     if m := re.fullmatch(r"(?:person|profile|who is|whois)\s+([a-z][\w'-]{1,30})", t):
