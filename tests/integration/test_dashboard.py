@@ -170,5 +170,7 @@ def test_category_admin(client):
 def test_plans_goals(client):
     client.post("/api/v1/say", json={"text": "goal japan 2000 by march"}, headers=H)
     client.post("/api/v1/say", json={"text": "save 500 japan"}, headers=H)
-    g = next(x for x in client.get("/api/v1/plans", headers=H).json()["goals"] if x["slug"] == "japan")
+    g = next(
+        x for x in client.get("/api/v1/plans", headers=H).json()["goals"] if x["slug"] == "japan"
+    )
     assert g["saved_minor"] == 50000 and g["target_minor"] == 200000
