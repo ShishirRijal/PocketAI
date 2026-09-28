@@ -32,7 +32,7 @@ Pocket: This week (so far) · Groceries: €29.00 spent across 1 transaction.
 - **A staged LLM pipeline, not one prompt.** Intent → extraction (structured JSON schema) → categorization → policy. Each stage is small, testable and has its own model chain. Anything deterministic (undo, edit 2 amount 29, show week, budgets) never touches a model.
 - **Vendor-agnostic, free-first routing.** Gemini → Grok → OpenAI → an **offline rule-based parser**, per stage, via LiteLLM. Fallback triggers on rate limits, timeouts, 5xx, context overflow and **schema-validation failures** (retry once, then move on). Models near their free-tier quota are skipped before they 429. There's a daily $ cap, and past it only free backends run.
 - **Works with zero API keys.** The rules backend handles the common shapes ("23 eur groceries at rimi", "sorry it was 29", "how much grocery this month?", romanized Nepali) and reports honest confidence, so shaky parses ask for confirmation.
-- **The LLM proposes; the system confirms.** Confidence gating, novel-category confirmation (no category explosion), duplicate detection, multi-transaction confirmation.
+- **The LLM proposes; the system confirms.** Deterministic guards check every extraction (an explicit "£"/"₹"/"npr" in the text beats the model's currency; an amount that isn't in the message forces a confirmation), plus confidence gating, novel-category confirmation (no category explosion), duplicate detection, multi-transaction confirmation.
 - **Nothing is lost or silently overwritten.** Every inbound message is persisted before processing (idempotent on the provider's message id, so webhook retries can't double-log). Every edit writes a version row. Deletes are soft. Undo is exact.
 - **Debuggable.** Every LLM call is logged with request/response, tokens, latency and cost. `/admin/replay/<id>` re-runs any stored message as a dry run. JSON logs have one line per message with the pipeline stages.
 
@@ -45,7 +45,7 @@ Pocket: This week (so far) · Groceries: €29.00 spent across 1 transaction.
 | Money | integer minor units, multi-currency with base-currency conversion (ECB via frankfurter, NPR via the INR peg, fallbacks) |
 | Fixing things | `undo`, `edit`, `edit 2 amount 29`, "make that groceries", `delete 3`, "delete the coffee one", `history 1` |
 | Questions | "how much grocery this month?", "top merchants last month", "average weekday coffee spend", "breakdown by category", "how much with arjun this year" |
-| Extras | budgets with 80% nudges, recurring transactions ("every 15th 12.99 spotify"), lending tracker ("lent 20 to arjun", `owes`), group splits ("split 60 dinner with arjun and sita"), person profiles, "unusually large" nudges, weekly digest, exports (CSV/JSON/QIF), category management |
+| Extras | budgets with 80% nudges, recurring transactions ("every 15th 12.99 spotify"), lending tracker ("lent 20 to arjun", `owes`), group splits ("split 60 dinner with arjun and sita"), savings goals ("goal japan 2000 by march", "save 200 japan"), person profiles, "unusually large" nudges, weekly digest, exports (CSV/JSON/QIF), category management |
 | Dashboard | overview charts, filters (period, direction, category, merchant, tag, search, amount range, currency), transactions table with edit drawer + full history, plans (budget meters, recurring, lending), LLM cost & health, a quick-log box that runs the same pipeline, installable as a PWA |
 | Ops | health/readiness checks, per-user rate limits, cost cap, nightly backups (+ Azure Blob), Redis Streams workers, Docker Compose + Caddy, CI |
 
@@ -79,6 +79,7 @@ open "http://localhost:8080/app?token=dev"
 | `every 15th 12.99 spotify` · `recurring` | recurring transactions |
 | `lent 20 to arjun` · `owes` · `person arjun` | lending balances, people profiles |
 | `split 60 dinner with arjun and sita` | your share as an expense, the rest as loans |
+| `goal japan 2000 by march` · `save 200 japan` · `goals` | savings goals with the monthly amount needed |
 | `export csv month` | signed download link |
 | `categories` · `category rename X to Y` · `category merge X into Y` | category admin |
 | `cost` · `review` · `digest` · `currency npr` · `tz Europe/Lisbon` | the rest (`help` lists everything) |
