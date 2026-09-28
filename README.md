@@ -49,6 +49,18 @@ Pocket: This week (so far) · Groceries: €29.00 spent across 1 transaction.
 | Dashboard | overview charts, filters (period, direction, category, merchant, tag, search, amount range, currency), transactions table with edit drawer + full history, plans (budget meters, recurring, lending), LLM cost & health, a quick-log box that runs the same pipeline, installable as a PWA |
 | Ops | health/readiness checks, per-user rate limits, cost cap, nightly backups (+ Azure Blob), Redis Streams workers, Docker Compose + Caddy, CI |
 
+## How well does it parse?
+
+`pocket eval` runs a golden set and a held-out set against each model alone ([full report](docs/eval.md)):
+
+| held-out (26 msgs) | intent | extraction | category | p50 | p95 | list cost |
+|---|---|---|---|---|---|---|
+| `rules/v1` (offline, free) | 100% | 100% | 94% | 0 ms | 1 ms | $0 |
+| `gemini-flash-lite-latest` | 100% | 100% | 93% | 1.2 s | 14.9 s | $0.015 (free tier) |
+| `gpt-4o-mini` | 100% | 100% | 88% | 1.2 s | 2.0 s | $0.006 |
+
+The offline parser holding up this well is what makes "works with zero API keys" real. The LLMs earn their keep on phrasing no regex anticipates, and in the edit/query stages.
+
 ## Quickstart (local, 2 minutes)
 
 ```bash
