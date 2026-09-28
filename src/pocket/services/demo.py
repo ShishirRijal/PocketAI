@@ -16,7 +16,7 @@ from sqlalchemy import select
 
 from pocket.core import money
 from pocket.data.db import Database
-from pocket.data.models import Budget, RecurringRule, Transaction
+from pocket.data.models import Budget, Goal, RecurringRule, Transaction
 from pocket.data.repositories import CategoryRepo, TagRepo, TransactionRepo, UserRepo
 from pocket.services.recurring import next_date
 
@@ -224,4 +224,31 @@ def seed_demo(db: Database, months: int = 6, seed: int = 42, user_id: int | None
                 category_id=c.id if c else None, merchant=mer, tags=tg, cadence="monthly", anchor=day,
                 next_run=datetime.combine(nxt, time(9, 0), tzinfo=tz).astimezone(UTC),
             ))  # fmt: skip
+
+        # a savings goal with a few monthly contributions
+        if not s.scalars(
+            select(Goal).where(Goal.user_id == user.id, Goal.slug == "japan-trip")
+        ).first():
+            due = datetime.combine(date(today.year + 1, 6, 30), time(12), tzinfo=tz)
+            s.add(
+                Goal(
+                    user_id=user.id,
+                    name="Japan trip",
+                    slug="japan-trip",
+                    target_minor=250000,
+                    due=due,
+                )
+            )
+            goal_tag = tags.get_or_create(user.id, "goal-japan-trip")
+            for back in (90, 60, 30, 2):
+                when = datetime.combine(
+                    today - timedelta(days=back), time(10), tzinfo=tz
+                ).astimezone(UTC)
+                txns.add(
+                    Transaction(
+                        user_id=user.id, amount_minor=20000, currency="EUR", amount_base_minor=20000,
+                        direction="transfer", note="saved for Japan trip", occurred_at=when, created_at=when,
+                    ),
+                    [goal_tag],
+                )  # fmt: skip
         return n
