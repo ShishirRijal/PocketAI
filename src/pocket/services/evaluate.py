@@ -50,6 +50,7 @@ class ModelScore:
     cats: int = 0
     cats_ok: int = 0
     errors: int = 0
+    unavailable: bool = False
     latencies: list[float] = field(default_factory=list)
     cost: float = 0.0
     misses: list[str] = field(default_factory=list)
@@ -67,6 +68,7 @@ class ModelScore:
             "cost_usd": round(self.cost, 5),
             "errors": self.errors,
             "n": self.intents,
+            "unavailable": self.unavailable,
         }
 
 
@@ -100,7 +102,7 @@ class _Pacer:
     """Keeps a model under its configured free-tier rpm and retries 429/503s,
     so the bake-off measures answers, not rate limits."""
 
-    def __init__(self, model: str, settings: Settings, pipe: Pipeline, retries: int = 3):
+    def __init__(self, model: str, settings: Settings, pipe: Pipeline, retries: int = 2):
         self.pipe = pipe
         quotas = RouterConfig.from_yaml(settings.llm_config_path).quotas
         rpm = (quotas.get(model) or {}).get("rpm")
@@ -142,12 +144,19 @@ async def evaluate(
             continue
         u = _ctx()
         pacer = _Pacer(model, settings, pipe)
+        streak = 0
         for case in cases:
+            if streak >= 5:
+                # the provider is down/overloaded right now; don't stall the whole run
+                score.unavailable = True
+                break
             intent = await pacer.call(pipe.intent, case["text"], u)
             if intent is None:
                 # provider errors (429/503) aren't the model being wrong; keep them apart
                 score.errors += 1
+                streak += 1
                 continue
+            streak = 0
             score.intents += 1
             score.latencies.append(time.perf_counter() - pacer.last_start)
             if intent.intent.value == case["intent"]:
@@ -193,6 +202,11 @@ def render_markdown(scores: list[ModelScore], n_cases: int) -> str:
     )
     lines = []
     for r in rows:
+        if r["unavailable"]:
+            lines.append(
+                f"| `{r['model']}` | unavailable (5 provider errors in a row) | | | | | | {r['errors']} |"
+            )
+            continue
         if r["errors"] == -1:
             lines.append(f"| `{r['model']}` | no credentials | | | | | | |")
             continue
