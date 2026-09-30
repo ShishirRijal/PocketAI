@@ -100,15 +100,21 @@ open "http://localhost:8080/app?token=dev"
 
 ```mermaid
 flowchart LR
-  WA[WhatsApp] & TG[Telegram] & DC[Discord] & CLI[CLI] --> IN[Webhook + signature check]
-  IN --> RAW[(raw_messages<br/>idempotent)] --> Q[Queue<br/>asyncio or Redis Streams]
-  Q --> W[Worker] --> O[Orchestrator<br/>state machine]
-  O -- stage calls --> R[LLM router] --> G[Gemini] & X[Grok] & OA[OpenAI] & RU[rules/v1 offline]
-  O <--> DB[(SQLite/Postgres)]
-  O --> OUT[Channel adapter] --> WA & TG & DC & CLI
+  WA["WhatsApp"]:::user & TG["Telegram"]:::user & DC["Discord"]:::user & CLI["CLI / web"]:::user --> IN["Webhook +<br/>signature check"]:::edge
+  IN --> RAW[("raw_messages<br/>idempotent")]:::store --> Q["Queue<br/>asyncio or Redis Streams"]:::store
+  Q --> W["Worker"]:::core --> O["Orchestrator<br/>state machine"]:::core
+  O -- "stage calls" --> R["LLM router"]:::ai --> G["Gemini"]:::ai & OA["OpenAI"]:::ai & RU["rules/v1 offline"]:::core
+  O <--> DB[("SQLite / Postgres")]:::store
+  O --> OUT["Channel adapter"]:::edge --> WA & TG & DC & CLI
+
+  classDef user fill:#dbeafe,stroke:#2563eb,color:#0f172a
+  classDef edge fill:#ede9fe,stroke:#7c3aed,color:#0f172a
+  classDef core fill:#dcfce7,stroke:#16a34a,color:#0f172a
+  classDef ai fill:#ffedd5,stroke:#ea580c,color:#0f172a
+  classDef store fill:#fef9c3,stroke:#ca8a04,color:#0f172a
 ```
 
-The orchestrator is deliberately **not an agent**. It's a plain state machine: pending answer? → deterministic command? → intent → stage → policy → side effect. The LLM is consulted only where language understanding is needed. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design, and [ROADMAP.md](ROADMAP.md) for what's next.
+The orchestrator is deliberately **not an agent**. It's a plain state machine: pending answer? → deterministic command? → intent → stage → policy → side effect. The LLM is consulted only where language understanding is needed. **Full documentation, with diagrams: [docs/](docs/README.md)** (overview → life of a message → orchestrator → LLM layer → data model → features → channels → dashboard → operations). The short "as built vs. design doc" summary is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); what's next is in [ROADMAP.md](ROADMAP.md).
 
 ```
 src/pocket/
