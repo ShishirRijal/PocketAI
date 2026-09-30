@@ -1,5 +1,5 @@
-# Offline / "travel week" profile (§5.4): everything on a local Ollama model,
-# with the rules parser behind it. Use with:
+# Offline / "travel week" profile (§5.4): everything on a local Ollama model.
+# Use with:
 #   POCKET_LLM_CONFIG_PATH=config/llm.local.yaml
 #   OLLAMA_API_BASE=http://localhost:11434   (or http://ollama:11434 in compose)
 #   docker compose --profile local up -d && docker compose exec ollama ollama pull qwen2.5:3b-instruct
@@ -7,7 +7,7 @@
 router:
   local:
     primary: ollama_chat/qwen2.5:3b-instruct
-    fallbacks: [ollama_chat/llama3.2:3b, rules/v1]
+    fallbacks: [ollama_chat/llama3.2:3b]
   local_text:
     primary: ollama_chat/qwen2.5:3b-instruct
     fallbacks: [ollama_chat/llama3.2:3b]

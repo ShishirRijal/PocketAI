@@ -187,6 +187,8 @@ async def quota(request: Request) -> dict[str, Any]:
 async def reload(request: Request) -> dict[str, Any]:
     runtime = rt(request)
     cfg = RouterConfig.from_yaml(runtime.settings.llm_config_path)
+    if runtime.settings.llm_provider_order:
+        cfg = cfg.reordered(runtime.settings.llm_provider_order)
     runtime.services.router.config = cfg
     runtime.services.router.quota.limits = cfg.quotas
     return {"reloaded": True, "chains": {k: v.models for k, v in cfg.chains.items()}}

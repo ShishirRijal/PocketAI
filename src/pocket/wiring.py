@@ -16,7 +16,6 @@ from pocket.core.ratelimit import RateLimiter
 from pocket.core.session import DBSessionStore, RedisSessionStore, SessionStore
 from pocket.data.db import Database
 from pocket.data.repositories import LLMCallRepo, UserRepo
-from pocket.llm.backends.rules import RulesBackend
 from pocket.llm.quota import QuotaTracker
 from pocket.llm.router import Backend, LLMRouter, RouterConfig
 from pocket.llm.stages import Pipeline
@@ -83,8 +82,10 @@ def build_services(
         redis_async = redis_asyncio.Redis.from_url(settings.redis_url, decode_responses=True)
 
     cfg = router_config or RouterConfig.from_yaml(settings.llm_config_path)
+    if settings.llm_provider_order:
+        cfg = cfg.reordered(settings.llm_provider_order)
     call_log = CallLog(db)
-    all_backends: dict[str, Backend] = {"rules": RulesBackend()}
+    all_backends: dict[str, Backend] = {}
     if backends:
         all_backends.update(backends)
     if default_backend is None and use_litellm:

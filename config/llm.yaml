@@ -1,33 +1,33 @@
-# LLM routing. Read at boot; `pocket` reloads it on SIGHUP / POST /admin/reload.
+# LLM routing: which model answers each stage, in priority order.
 #
-# Models without credentials in the environment are skipped automatically, so
-# the same file works with only a Gemini key, only an OpenAI key, or no keys at
-# all (then everything goes to the offline `rules/v1` parser).
+# Current priority: OpenAI first (free credits), Gemini as the fallback.
+# To flip it later without touching this file, set in .env:
+#     POCKET_LLM_PROVIDER_ORDER=gemini,openai
+# (every chain is re-sorted by provider; order within a provider is kept).
+#
+# Models without credentials in the environment are skipped automatically.
+# If every model in a chain fails, the message is kept and retried later
+# (see docs/02-message-lifecycle.md), nothing is lost.
 
 router:
-  fast:          # Stage A intent classifier: cheap, fast, disposable
-    primary: gemini/gemini-flash-lite-latest
-    fallbacks: [xai/grok-4-fast, openai/gpt-4o-mini, rules/v1]
-  extractor:     # Stage B/C: structured output. flash-lite first: in practice 3.8-flash
-                 # 503s ("high demand") often and is ~2x slower for no gain on the golden set
-    primary: gemini/gemini-flash-lite-latest
-    fallbacks: [openai/gpt-4o-mini, gemini/gemini-3.8-flash, xai/grok-4, rules/v1]
+  fast:          # Stage A intent classifier: cheap, fast
+    primary: openai/gpt-4o-mini
+    fallbacks: [gemini/gemini-flash-lite-latest]
+  extractor:     # Stage B/C: structured extraction + categorization
+    primary: openai/gpt-4o-mini
+    fallbacks: [gemini/gemini-flash-lite-latest, gemini/gemini-3.8-flash]
   resolver:      # edit / delete target resolution
-    primary: gemini/gemini-flash-lite-latest
-    fallbacks: [openai/gpt-4o-mini, rules/v1]
-  query:         # Stage B''': NL -> query plan. The doc wanted 2.5-pro, but pro has no
-                 # free quota on new keys (429) and 2.5-* is closed to new users (404).
-    primary: gemini/gemini-3.8-flash
-    fallbacks: [openai/gpt-4o-mini, gemini/gemini-flash-lite-latest, rules/v1]
-  summarizer:    # digests
-    primary: gemini/gemini-3.8-flash
-    fallbacks: [openai/gpt-4o-mini, gemini/gemini-flash-lite-latest]
+    primary: openai/gpt-4o-mini
+    fallbacks: [gemini/gemini-flash-lite-latest]
+  query:         # NL question -> query plan
+    primary: openai/gpt-4o-mini
+    fallbacks: [gemini/gemini-3.8-flash, gemini/gemini-flash-lite-latest]
+  summarizer:    # weekly/monthly digest wording
+    primary: openai/gpt-4o-mini
+    fallbacks: [gemini/gemini-flash-lite-latest]
   vision:        # receipt photos
-    primary: gemini/gemini-3.8-flash
-    fallbacks: [openai/gpt-4o-mini]
-  local:         # phase 3: ollama on the same box (set OLLAMA_API_BASE)
-    primary: ollama/qwen2.5:3b-instruct
-    fallbacks: [rules/v1]
+    primary: openai/gpt-4o-mini
+    fallbacks: [gemini/gemini-3.8-flash]
 
 # stage -> chain
 purposes:
@@ -41,10 +41,9 @@ purposes:
   receipt: vision
 
 # free-tier limits; we skip a model once it's within 5% of these
-quotas:  # rough free-tier numbers, tune from /admin/quota once you see real 429s
+quotas:
   gemini/gemini-3.8-flash: {rpm: 10, rpd: 250}
   gemini/gemini-flash-lite-latest: {rpm: 15, rpd: 1000}
-  xai/grok-4-fast: {rpm: 60}
 
 transcription:
   model: openai/gpt-4o-mini-transcribe

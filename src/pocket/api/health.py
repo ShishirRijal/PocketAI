@@ -16,8 +16,7 @@ async def healthz() -> dict[str, str]:
 @router.get("/readyz")
 async def readyz(request: Request) -> JSONResponse:
     """Readiness: DB answers, Redis answers (if configured), and at least one
-    model is usable for extraction (the offline rules parser counts, but is
-    reported so you notice when every real provider is misconfigured)."""
+    model has credentials for extraction."""
     runtime = request.app.state.runtime
     checks: dict[str, object] = {}
     ok = True
@@ -39,7 +38,6 @@ async def readyz(request: Request) -> JSONResponse:
     checks["llm_extract_models"] = models
     if not models:
         ok = False
-    checks["llm_offline_only"] = all(m.startswith("rules/") for m in models)
     return JSONResponse(
         {"status": "ok" if ok else "fail", "checks": checks}, status_code=200 if ok else 503
     )

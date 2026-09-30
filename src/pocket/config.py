@@ -63,6 +63,8 @@ class Settings(BaseSettings):
 
     # llm
     llm_config_path: Path = PROJECT_ROOT / "config" / "llm.yaml"
+    # optional override of provider priority in every chain, e.g. "gemini,openai"
+    llm_provider_order: str | None = None
     llm_daily_cost_cap_usd: float = 1.0
     llm_timeout_s: float = 10.0
 
