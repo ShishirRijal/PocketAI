@@ -40,7 +40,9 @@ class UserContext:
     def today(self) -> str:
         return self.now_local.date().isoformat()
 
-    def rules_ctx(self, text: str, **extra: Any) -> dict[str, Any]:
+    def ctx_dict(self, text: str, **extra: Any) -> dict[str, Any]:
+        """The same context as plain data, handed to backends alongside the
+        messages (the scripted test backends read it; real models ignore it)."""
         return {
             "text": text,
             "today": self.today,
@@ -92,13 +94,13 @@ class Pipeline:
         }
 
     async def intent(self, text: str, u: UserContext) -> IntentResult:
-        b = self._bundle(u, "intent", f"Message: {text}", u.rules_ctx(text))
+        b = self._bundle(u, "intent", f"Message: {text}", u.ctx_dict(text))
         return (
             await self.router.structured("intent", b, IntentResult, raw_message_id=u.raw_message_id)
         ).value
 
     async def extract(self, text: str, u: UserContext) -> ExtractionResult:
-        b = self._bundle(u, "extract", f"Message: {text}", u.rules_ctx(text), **self._common(u))
+        b = self._bundle(u, "extract", f"Message: {text}", u.ctx_dict(text), **self._common(u))
         res = await self.router.structured(
             "extract", b, ExtractionResult, raw_message_id=u.raw_message_id
         )
@@ -112,7 +114,7 @@ class Pipeline:
             u,
             "categorize",
             "Pick the category.",
-            u.rules_ctx(text, category_hint=txn.category_hint, merchant=txn.merchant),
+            u.ctx_dict(text, category_hint=txn.category_hint, merchant=txn.merchant),
             transaction=json.dumps(txn.model_dump(exclude={"reasoning", "confidence"})),
             text=text,
             category_list=cat_list,
@@ -128,7 +130,7 @@ class Pipeline:
             u,
             "edit",
             f"Message: {text}",
-            u.rules_ctx(text),
+            u.ctx_dict(text),
             recent=_recent_block(u.recent),
             today=u.today,
         )
@@ -138,7 +140,7 @@ class Pipeline:
 
     async def resolve_delete(self, text: str, u: UserContext) -> DeleteResolution:
         b = self._bundle(
-            u, "delete", f"Message: {text}", u.rules_ctx(text), recent=_recent_block(u.recent)
+            u, "delete", f"Message: {text}", u.ctx_dict(text), recent=_recent_block(u.recent)
         )
         return (
             await self.router.structured(
@@ -147,7 +149,7 @@ class Pipeline:
         ).value
 
     async def plan_query(self, text: str, u: UserContext) -> QueryPlan:
-        b = self._bundle(u, "query", f"Question: {text}", u.rules_ctx(text), **self._common(u))
+        b = self._bundle(u, "query", f"Question: {text}", u.ctx_dict(text), **self._common(u))
         return (
             await self.router.structured("query", b, QueryPlan, raw_message_id=u.raw_message_id)
         ).value
@@ -165,7 +167,7 @@ class Pipeline:
                 ],
             },
         ]
-        b = PromptBundle(messages=messages, ctx=u.rules_ctx(caption), images=[image_url])
+        b = PromptBundle(messages=messages, ctx=u.ctx_dict(caption), images=[image_url])
         return (
             await self.router.structured(
                 "receipt", b, ReceiptExtraction, raw_message_id=u.raw_message_id

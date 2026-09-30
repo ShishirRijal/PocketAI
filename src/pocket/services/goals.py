@@ -19,11 +19,10 @@ from sqlalchemy.orm import Session
 
 from pocket.channels.base import OutboundMessage
 from pocket.core import money
-from pocket.core.dates import find_date
+from pocket.core.dates import MONTHS, find_date
 from pocket.data.db import utcnow
 from pocket.data.models import Goal, Tag, Transaction, TransactionTag, User
 from pocket.data.repositories import TagRepo, TransactionRepo, normalize_tag
-from pocket.llm.rules.lexicon import MONTHS
 
 if TYPE_CHECKING:
     from pocket.core.commands import Command

@@ -1,5 +1,8 @@
-"""Deterministic category matching. Runs before the LLM categorizer; most of the
-time "grocery" -> "Groceries" doesn't need a model call."""
+"""Map a category *name* (the LLM's suggestion, or what you typed) onto one of
+your existing categories: exact, singular/plural, or a close typo. This is what
+stops "Grocery", "Groceries" and "Grocceries" from becoming three categories.
+
+It never reads your message; understanding the message is the LLM's job."""
 
 from __future__ import annotations
 
@@ -7,8 +10,6 @@ import difflib
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-
-from pocket.llm.rules.lexicon import CATEGORY_KEYWORDS
 
 
 @dataclass
@@ -47,29 +48,8 @@ def match_category(hint: str | None, categories: Sequence[CatRef]) -> tuple[CatR
         if _stem(name) == hs:
             return c, 0.97
 
-    # the hint is a keyword we know belongs to a category the user has
-    for cat_name, words in CATEGORY_KEYWORDS.items():
-        if h in words or hs in words:
-            kw_cat = by_lower.get(cat_name.lower())
-            if kw_cat:
-                return kw_cat, 0.9
-
     close = difflib.get_close_matches(h, list(by_lower), n=1, cutoff=0.82)
     if close:
         ratio = difflib.SequenceMatcher(None, h, close[0]).ratio()
         return by_lower[close[0]], round(ratio * 0.95, 3)
     return None, 0.0
-
-
-def keyword_category(text: str) -> str | None:
-    """Scan free text for a known keyword. Longest keyword wins so 'bolt food'
-    beats 'bolt'."""
-    t = f" {text.lower()} "
-    best: tuple[int, str] | None = None
-    for cat, words in CATEGORY_KEYWORDS.items():
-        for w in words:
-            if re.search(rf"(?<![\w-]){re.escape(w)}(?:e?s)?(?![\w-])", t) and (
-                best is None or len(w) > best[0]
-            ):
-                best = (len(w), cat)
-    return best[1] if best else None

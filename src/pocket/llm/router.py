@@ -7,7 +7,7 @@ specific:
 - rate limit / timeout / 5xx / context length  -> next model
 - schema validation failure                    -> retry same model once, then next
 - model within 5% of its free-tier quota        -> skipped before calling
-- daily cost cap hit                            -> only zero-cost backends (rules/local)
+- daily cost cap hit                            -> stop (only zero-cost backends, i.e. test fakes, run)
 
 Every attempt is reported to `call_sink` so it lands in the llm_calls table.
 """
@@ -92,7 +92,7 @@ class PromptBundle:
     """What a stage hands the router.
 
     `messages` is for real models. `ctx` is the same information as plain data,
-    for the offline rules backend (and the fake backend in tests).
+    for the scripted backends used in tests.
     """
 
     messages: list[dict[str, Any]]
@@ -160,6 +160,29 @@ class RouterConfig:
             aliases=raw.get("purposes") or {},
         )
 
+    def reordered(self, provider_order: str | list[str]) -> RouterConfig:
+        """Re-sort every chain by provider, e.g. "openai,gemini" puts all openai/*
+        models first. Order within a provider, and providers not listed, keep
+        their position from llm.yaml. One setting flips the priority everywhere."""
+        order = [
+            p.strip()
+            for p in (
+                provider_order.split(",") if isinstance(provider_order, str) else provider_order
+            )
+            if p.strip()
+        ]
+        rank = {p: i for i, p in enumerate(order)}
+
+        def key(item: tuple[int, str]) -> tuple[int, int]:
+            idx, model = item
+            return (rank.get(model.split("/", 1)[0], len(order)), idx)
+
+        chains = {}
+        for name, c in self.chains.items():
+            models = [m for _, m in sorted(enumerate(c.models), key=key)]
+            chains[name] = Chain(primary=models[0], fallbacks=models[1:])
+        return RouterConfig(chains=chains, quotas=self.quotas, aliases=self.aliases)
+
     def chain_for(self, purpose: str) -> Chain:
         name = self.aliases.get(purpose, purpose)
         if name not in self.chains:
@@ -221,7 +244,7 @@ class LLMRouter:
         timeout: float = 10.0,
     ):
         """
-        backends: model prefix -> backend, e.g. {"rules": RulesBackend(), "fake": fake}.
+        backends: model prefix -> backend, e.g. {"fake": fake} in tests.
         Anything without a matching prefix goes to `default_backend` (litellm).
         cost_guard: returns True when the daily cap is hit.
         """

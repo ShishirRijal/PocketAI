@@ -23,10 +23,10 @@ from sqlalchemy import select
 
 from pocket.channels.base import OutboundMessage
 from pocket.core import money, render
+from pocket.core.dates import WEEKDAYS
 from pocket.data.db import utcnow
 from pocket.data.models import RecurringRule, Transaction, User
 from pocket.data.repositories import CategoryRepo, TagRepo, TransactionRepo
-from pocket.llm.rules.lexicon import WEEKDAYS
 
 if TYPE_CHECKING:
     from pocket.core.commands import Command

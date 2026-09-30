@@ -7,7 +7,23 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from pocket.llm.rules.lexicon import MONTHS, WEEKDAYS
+# fmt: off
+WEEKDAYS = {
+    "monday": 0, "mon": 0, "sombar": 0,
+    "tuesday": 1, "tue": 1, "tues": 1, "mangalbar": 1,
+    "wednesday": 2, "wed": 2, "budhabar": 2,
+    "thursday": 3, "thu": 3, "thurs": 3, "bihibar": 3,
+    "friday": 4, "fri": 4, "sukrabar": 4,
+    "saturday": 5, "sat": 5, "sanibar": 5,
+    "sunday": 6, "sun": 6, "aitabar": 6,
+}
+MONTHS = {
+    "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3, "april": 4,
+    "apr": 4, "may": 5, "june": 6, "jun": 6, "july": 7, "jul": 7, "august": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9, "october": 10, "oct": 10, "november": 11, "nov": 11,
+    "december": 12, "dec": 12,
+}
+# fmt: on
 
 
 def local_now(tz: str, now: datetime | None = None) -> datetime:
