@@ -99,7 +99,7 @@ def test_export_csv(client):
 
 def test_system(client):
     r = client.get("/api/v1/system", headers=H).json()
-    assert "chains" in r and "rules/v1" in r["chains"]["extract"]
+    assert "chains" in r and "stub/v1" in r["chains"]["extract"]
 
 
 def test_quick_log(client):

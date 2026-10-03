@@ -1,14 +1,14 @@
-"""`rules/*` models: the offline parser exposed as an LLM backend."""
+"""`stub/*` models for tests: the stub parser exposed as an LLM backend."""
 
 from __future__ import annotations
 
 from pydantic import BaseModel
 
 from pocket.llm.router import BackendResponse, LLMError, PromptBundle
-from pocket.llm.rules import parser
+from tests.support.stub_llm import parser
 
 
-class RulesBackend:
+class StubLLM:
     free = True
 
     def available(self, model: str) -> bool:
@@ -38,5 +38,5 @@ class RulesBackend:
             case "query":
                 out = parser.plan_query(text, ctx)
             case _:
-                raise LLMError(f"rules backend can't do {purpose!r}")
+                raise LLMError(f"stub backend can't do {purpose!r}")
         return BackendResponse(content=out.model_dump(mode="json"), cost_usd=0.0)

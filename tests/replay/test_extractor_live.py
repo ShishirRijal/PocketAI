@@ -29,7 +29,7 @@ def pipeline(tmp_path_factory) -> Pipeline:
     )
     svc = build_services(settings)
     svc.db.create_all()
-    if all(m.startswith("rules/") for m in svc.router.usable_models("extract")):
+    if not svc.router.usable_models("extract"):
         pytest.skip("no LLM provider keys configured")
     return svc.pipeline
 

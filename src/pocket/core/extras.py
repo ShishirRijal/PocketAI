@@ -231,7 +231,7 @@ async def history(o: Orchestrator, t: Turn, cmd: Command) -> list[OutboundMessag
     txn = rows[idx - 1]
     versions = TransactionRepo(t.s).versions(txn.id)
     lines = [
-        f"🕘 {render.txn_line(txn, t.base, t.tz)}",
+        f"🕘 {render.txn_line(txn, t.base, t.tz, now=t.now)}",
         f"created {humanize_when(txn.created_at, t.tz, t.now)}",
     ]
     for v in versions:

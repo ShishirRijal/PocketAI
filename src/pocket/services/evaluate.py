@@ -1,7 +1,7 @@
 """Model bake-off: run the golden message set against one model at a time.
 
     pocket eval                                   # default candidates
-    pocket eval --models gemini/gemini-flash-lite-latest,openai/gpt-4o-mini,rules/v1
+    pocket eval --models openai/gpt-4o-mini,gemini/gemini-flash-lite-latest
 
 For each model: intent accuracy, extraction accuracy (right number of
 transactions with the right amounts/currencies/directions), category agreement,
@@ -26,17 +26,16 @@ from pocket.llm.router import LLMRouter, LLMUnavailable, RouterConfig
 from pocket.llm.stages import Pipeline, UserContext
 
 GOLDEN = PROJECT_ROOT / "tests" / "fixtures" / "messages.jsonl"
-# written after the rules parser was done and never tuned against: the fair comparison
+# written later and never tuned against: the fairer comparison
 HOLDOUT = PROJECT_ROOT / "tests" / "fixtures" / "holdout.jsonl"
 CATEGORIES = [
     "Groceries", "Cafes", "Restaurants", "Transport", "Rent", "Utilities", "Subscriptions",
     "Shopping", "Health", "Entertainment", "Travel", "Education", "Gifts", "Salary", "Miscellaneous",
 ]  # fmt: skip
 DEFAULT_MODELS = [
-    "rules/v1",
+    "openai/gpt-4o-mini",
     "gemini/gemini-flash-lite-latest",
     "gemini/gemini-3.8-flash",
-    "openai/gpt-4o-mini",
 ]
 
 
@@ -82,15 +81,14 @@ def _ctx() -> UserContext:
     )
 
 
-def _pipeline_for(model: str, settings: Settings, sink) -> Pipeline:
+def _pipeline_for(model: str, settings: Settings, sink, backends: dict | None = None) -> Pipeline:
     from pocket.llm.backends.litellm_backend import LiteLLMBackend
-    from pocket.llm.backends.rules import RulesBackend
 
     purposes = ["intent", "extract", "categorize", "edit", "delete", "query"]
     cfg = RouterConfig.from_dict({"router": {p: {"primary": model} for p in purposes}})
     router = LLMRouter(
         cfg,
-        {"rules": RulesBackend()},
+        backends or {},
         LiteLLMBackend(),
         call_sink=sink,
         timeout=settings.llm_timeout_s * 2,
@@ -130,14 +128,17 @@ class _Pacer:
 
 
 async def evaluate(
-    models: list[str], settings: Settings, cases: list[dict] | None = None
+    models: list[str],
+    settings: Settings,
+    cases: list[dict] | None = None,
+    backends: dict | None = None,
 ) -> list[ModelScore]:
     cases = cases or [json.loads(x) for x in GOLDEN.read_text().splitlines() if x.strip()]
     scores = []
     for model in models:
         score = ModelScore(model)
         calls: list[dict] = []
-        pipe = _pipeline_for(model, settings, calls.append)
+        pipe = _pipeline_for(model, settings, calls.append, backends)
         if not pipe.router.usable_models("intent"):
             score.errors = -1  # no credentials
             scores.append(score)
@@ -226,7 +227,7 @@ def run_cli(models: list[str] | None, settings: Settings, out: Path | None) -> s
     sections = []
     for title, path in (
         ("Held-out set (never tuned against)", HOLDOUT),
-        ("Golden set (the rules parser was tuned on it)", GOLDEN),
+        ("Golden set", GOLDEN),
     ):
         cases = _load(path)
         scores = asyncio.run(evaluate(models or DEFAULT_MODELS, settings, cases))

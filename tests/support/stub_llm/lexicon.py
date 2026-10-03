@@ -1,4 +1,4 @@
-"""Word lists for the offline parser. English + romanized Nepali, tuned for
+"""Word lists for the test stub LLM. English + romanized Nepali, tuned for
 Tallinn / Porto / Tampere / Kathmandu spending."""
 
 from __future__ import annotations
@@ -150,3 +150,22 @@ MONTHS = {
     "september": 9, "sep": 9, "sept": 9, "october": 10, "oct": 10, "november": 11, "nov": 11,
     "december": 12, "dec": 12,
 }
+
+
+# fmt: on
+
+
+def keyword_category(text: str) -> str | None:
+    """Scan free text for a known keyword. Longest keyword wins so 'bolt food'
+    beats 'bolt'."""
+    import re
+
+    t = f" {text.lower()} "
+    best: tuple[int, str] | None = None
+    for cat, words in CATEGORY_KEYWORDS.items():
+        for w in words:
+            if re.search(rf"(?<![\w-]){re.escape(w)}(?:e?s)?(?![\w-])", t) and (
+                best is None or len(w) > best[0]
+            ):
+                best = (len(w), cat)
+    return best[1] if best else None

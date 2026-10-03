@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from pocket.core import money
-from pocket.core.categorize import CatRef, keyword_category, match_category
+from pocket.core.categorize import CatRef, match_category
 from pocket.core.dates import find_date, period_range, resolve_occurred_at
 
 NOW = datetime(2026, 9, 28, 18, 14, tzinfo=UTC)  # 21:14 in Tallinn
@@ -66,13 +66,6 @@ def test_match_category():
     assert match_category("grocery", cats)[0].id == 1
     assert match_category("GROCERIES", cats)[0].id == 1
     assert match_category("cafe", cats)[0].id == 2
-    assert match_category("coffee", cats)[0].id == 2
     assert match_category("takeaway", cats)[0].id == 3
     assert match_category("Grocceries", cats)[0].id == 1
     assert match_category("passport", cats)[0] is None
-
-
-def test_keyword_category_longest_wins():
-    assert keyword_category("bolt food order") == "Restaurants"
-    assert keyword_category("bolt ride") == "Transport"
-    assert keyword_category("2 coffees") == "Cafes"

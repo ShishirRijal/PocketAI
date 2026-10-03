@@ -1,9 +1,9 @@
-"""Offline, deterministic stand-in for every LLM stage.
+"""A deterministic stand-in for the LLM, used only by the test suite.
 
-It's the last fallback in each chain (so an outage of every provider still
-logs your coffee) and the default when no API keys are configured. It is good
-at the common shapes ("23 eur groceries at rimi today", "sorry it was 29",
-"how much grocery this month?") and honest about the rest via low confidence.
+It fills the same structured outputs a real model would (intent, extraction,
+edits, query plans), so the ~140 conversation tests can run in seconds without
+network, keys or cost. Pocket itself never uses this: in the app every stage is
+answered by a real model (OpenAI, then Gemini).
 """
 
 from __future__ import annotations
@@ -14,17 +14,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from pocket.core.categorize import CatRef, keyword_category, match_category
+from pocket.core.categorize import CatRef, match_category
 from pocket.core.dates import find_date, month_period
-from pocket.llm.rules.lexicon import (
-    CATEGORY_KEYWORDS,
-    CURRENCY_WORDS,
-    INCOME_WORDS,
-    KNOWN_MERCHANTS,
-    MONTHS,
-    STOPWORDS,
-    TRANSFER_WORDS,
-)
 from pocket.llm.schemas import (
     CategorizationResult,
     DeleteResolution,
@@ -36,6 +27,16 @@ from pocket.llm.schemas import (
     Intent,
     IntentResult,
     QueryPlan,
+)
+from tests.support.stub_llm.lexicon import (
+    CATEGORY_KEYWORDS,
+    CURRENCY_WORDS,
+    INCOME_WORDS,
+    KNOWN_MERCHANTS,
+    MONTHS,
+    STOPWORDS,
+    TRANSFER_WORDS,
+    keyword_category,
 )
 
 # ---------------------------------------------------------------- amounts
@@ -408,7 +409,7 @@ def extract(text: str, ctx: dict[str, Any]) -> ExtractionResult:
                 occurred_at=d.isoformat() if d else None,
                 note=note,
                 confidence=max(0.2, round(conf, 2)),
-                reasoning="rules: " + ("keyword category" if cat_hint else "no category keyword"),
+                reasoning="stub: " + ("keyword category" if cat_hint else "no category keyword"),
             )
         )
     return ExtractionResult(transactions=txns)
@@ -424,7 +425,7 @@ def categorize(ctx: dict[str, Any]) -> CategorizationResult:
     c, score = match_category(hint, cats)
     if c:
         return CategorizationResult(
-            category_id=c.id, confidence=min(0.95, score), rationale="rules match"
+            category_id=c.id, confidence=min(0.95, score), rationale="stub match"
         )
     kw = keyword_category(text)
     c, score = match_category(kw, cats)
@@ -535,7 +536,7 @@ def resolve_edit(text: str, ctx: dict[str, Any]) -> EditResolution:
     if not changes:
         conf = min(conf, 0.3)
     return EditResolution(
-        target_index=target, changes=changes, confidence=conf, reasoning="rules edit resolver"
+        target_index=target, changes=changes, confidence=conf, reasoning="stub edit resolver"
     )
 
 
@@ -550,7 +551,7 @@ def resolve_delete(text: str, ctx: dict[str, Any]) -> DeleteResolution:
         return DeleteResolution(target_indexes=nums, confidence=0.9)
     target, conf = _target_from_text(text, recent)
     return DeleteResolution(
-        target_indexes=[target] if target else [], confidence=conf, reasoning="rules delete"
+        target_indexes=[target] if target else [], confidence=conf, reasoning="stub delete"
     )
 
 

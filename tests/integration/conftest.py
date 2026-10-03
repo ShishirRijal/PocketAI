@@ -11,13 +11,15 @@ from pocket.llm.backends.fake import FakeBackend
 from pocket.llm.router import RouterConfig
 from pocket.services.fx import FxService, Rate
 from pocket.wiring import build_services, ensure_owner
+from tests.support.stub_llm import StubLLM
 
 PURPOSES = ["intent", "extract", "categorize", "edit", "delete", "query", "summarize", "receipt"]
 
 
-def rules_config(primary: str = "rules/v1") -> RouterConfig:
+def stub_config(primary: str = "stub/v1") -> RouterConfig:
+    """Every stage answered by the test stub LLM (no network, no keys)."""
     chains = {
-        p: {"primary": primary, "fallbacks": ["rules/v1"] if primary != "rules/v1" else []}
+        p: {"primary": primary, "fallbacks": ["stub/v1"] if primary != "stub/v1" else []}
         for p in PURPOSES
     }
     return RouterConfig.from_dict({"router": chains})
@@ -85,8 +87,8 @@ def settings(tmp_path):
 def services(settings, clock, fake):
     svc = build_services(
         settings,
-        backends={"fake": fake},
-        router_config=rules_config(),
+        backends={"fake": fake, "stub": StubLLM()},
+        router_config=stub_config(),
         fx=StaticFx(),
         use_litellm=False,
     )

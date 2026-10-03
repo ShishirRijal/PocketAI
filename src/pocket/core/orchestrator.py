@@ -362,7 +362,9 @@ class Orchestrator:
 
     def _show_list(self, t: Turn, rows: list[Transaction], header: str) -> OutboundMessage:
         t.session.shown_list = [r.id for r in rows]
-        lines = [f"{i}. {render.txn_line(r, t.base, t.tz)}" for i, r in enumerate(rows, 1)]
+        lines = [
+            f"{i}. {render.txn_line(r, t.base, t.tz, now=t.now)}" for i, r in enumerate(rows, 1)
+        ]
         opts = [
             (
                 str(i),
@@ -518,7 +520,9 @@ class Orchestrator:
             dup_id = next(p for p in proposals if p.duplicate_of).duplicate_of[0]
             existing = TransactionRepo(t.s).get(t.user.id, dup_id)
             pending.set(t.user.id, "confirm_duplicate", payload, ttl)
-            prev = render.txn_line(existing, t.base, t.tz) if existing else "a matching one"
+            prev = (
+                render.txn_line(existing, t.base, t.tz, now=t.now) if existing else "a matching one"
+            )
             return [
                 out(
                     f"Looks like a repeat 🤔 You already logged:\n{prev}\nSave this one too?",
@@ -533,7 +537,10 @@ class Orchestrator:
             payload["index"] = idx
             pending.set(t.user.id, "confirm_category", payload, ttl)
             line = render.proposal_line(
-                p.model_copy(update={"new_category": None, "category_name": "?"}), t.base, t.tz
+                p.model_copy(update={"new_category": None, "category_name": "?"}),
+                t.base,
+                t.tz,
+                t.now,
             )
             return [
                 out(
@@ -552,7 +559,7 @@ class Orchestrator:
         if d is Decision.CONFIRM:
             t.outcome = "pending"
             pending.set(t.user.id, "confirm_add", payload, ttl)
-            lines = [render.proposal_line(p, t.base, t.tz) for p in proposals]
+            lines = [render.proposal_line(p, t.base, t.tz, t.now) for p in proposals]
             if len(proposals) == 1:
                 return [
                     out(
@@ -581,7 +588,7 @@ class Orchestrator:
         pending.clear(t.user.id)
         t.outcome = "added"
         if len(saved) == 1:
-            line = render.txn_line(saved[0], t.base, t.tz)
+            line = render.txn_line(saved[0], t.base, t.tz, now=t.now)
             if proposals[0].new_category and saved[0].category:
                 name = saved[0].category.full_name
                 line = line.replace(name, f"{name} (new)", 1)
@@ -919,7 +926,9 @@ class Orchestrator:
         t.session.remember([txn.id])
         t.outcome = "edited"
         return [
-            out(f"✏️ Updated {label}: {', '.join(described)}\n{render.txn_line(txn, t.base, t.tz)}")
+            out(
+                f"✏️ Updated {label}: {', '.join(described)}\n{render.txn_line(txn, t.base, t.tz, now=t.now)}"
+            )
         ]
 
     # ------------------------------------------------------------ DELETE
@@ -945,7 +954,7 @@ class Orchestrator:
         if len(targets) > 1 or res.confidence < self.thresholds.commit:
             PendingRepo(t.s).set(t.user.id, "confirm_delete", {"ids": [r.id for r in targets]}, ttl)
             t.outcome = "pending"
-            lines = "\n".join(render.txn_line(r, t.base, t.tz) for r in targets)
+            lines = "\n".join(render.txn_line(r, t.base, t.tz, now=t.now) for r in targets)
             return [out(f"Delete {'these' if len(targets) > 1 else 'this'}?\n{lines}", YES_NO)]
         return self._do_delete(t, targets)
 
@@ -961,7 +970,7 @@ class Orchestrator:
             i for i in t.session.recent_transactions if i not in {r.id for r in rows}
         ]
         t.outcome = "deleted"
-        lines = "\n".join(render.txn_line(r, t.base, t.tz) for r in rows)
+        lines = "\n".join(render.txn_line(r, t.base, t.tz, now=t.now) for r in rows)
         return [
             out(
                 f'🗑️ Deleted:\n{lines}\n(reply "undo" to bring {"them" if len(rows) > 1 else "it"} back)'
@@ -989,12 +998,12 @@ class Orchestrator:
         if la.kind == "add":
             for r in rows:
                 repo.soft_delete(r, reason="undo add")
-            lines = "\n".join(render.txn_line(r, t.base, t.tz) for r in rows)
+            lines = "\n".join(render.txn_line(r, t.base, t.tz, now=t.now) for r in rows)
             return [out(f"↩️ Undone, removed:\n{lines}")]
         if la.kind == "delete":
             for r in rows:
                 repo.restore(r, reason="undo delete")
-            lines = "\n".join(render.txn_line(r, t.base, t.tz) for r in rows)
+            lines = "\n".join(render.txn_line(r, t.base, t.tz, now=t.now) for r in rows)
             return [out(f"↩️ Restored:\n{lines}")]
         # edit: reverse the exact version rows we wrote, newest first
         from pocket.data.models import TransactionVersion
@@ -1022,7 +1031,7 @@ class Orchestrator:
                 repo.update(txn, revert, changed_by="user", reason="undo edit")
         for r in rows:
             t.s.refresh(r)
-        lines = "\n".join(render.txn_line(r, t.base, t.tz) for r in rows)
+        lines = "\n".join(render.txn_line(r, t.base, t.tz, now=t.now) for r in rows)
         return [out(f"↩️ Reverted:\n{lines}")]
 
     # ------------------------------------------------------------ QUERY

@@ -31,13 +31,15 @@ def _lending_head(direction: str, amount: str, people: list[str]) -> str:
     return f"🤝 {VERB[direction]} {amount} {PREP[direction]} {who}"
 
 
-def txn_line(t: Transaction, base: str, tz: str, *, with_when: bool = True) -> str:
+def txn_line(
+    t: Transaction, base: str, tz: str, *, with_when: bool = True, now: datetime | None = None
+) -> str:
     amount = amount_str(t.amount_minor, t.currency, t.amount_base_minor, base)
     if t.direction in LENDING:
         people = [x.name for x in t.tags if x.kind == "person"]
         bits = [_lending_head(t.direction, amount, people)]
         if with_when:
-            bits.append(humanize_when(t.occurred_at, tz))
+            bits.append(humanize_when(t.occurred_at, tz, now))
         return " · ".join(bits)
     bits = [signed(t.direction, amount)]
     bits.append(t.category.full_name if t.category else "Uncategorized")
@@ -47,15 +49,15 @@ def txn_line(t: Transaction, base: str, tz: str, *, with_when: bool = True) -> s
     if tg:
         bits.append(tg)
     if with_when:
-        bits.append(humanize_when(t.occurred_at, tz))
+        bits.append(humanize_when(t.occurred_at, tz, now))
     return " · ".join(bits)
 
 
-def proposal_line(p: Proposal, base: str, tz: str) -> str:
+def proposal_line(p: Proposal, base: str, tz: str, now: datetime | None = None) -> str:
     amount = amount_str(p.amount_minor, p.currency, p.amount_base_minor, base)
     if p.direction in LENDING:
         people = [n for n, k in p.tags if k == "person"]
-        when = humanize_when(datetime.fromisoformat(p.occurred_at), tz)
+        when = humanize_when(datetime.fromisoformat(p.occurred_at), tz, now)
         return f"{_lending_head(p.direction, amount, people)} · {when}"
     bits = [signed(p.direction, amount)]
     if p.new_category:
@@ -67,7 +69,7 @@ def proposal_line(p: Proposal, base: str, tz: str) -> str:
         bits.append(tg)
     if p.note:
         bits.append(p.note)
-    bits.append(humanize_when(datetime.fromisoformat(p.occurred_at), tz))
+    bits.append(humanize_when(datetime.fromisoformat(p.occurred_at), tz, now))
     return " · ".join(bits)
 
 

@@ -160,11 +160,11 @@ def execute(s: Session, user: User, plan: QueryPlan, now: datetime | None = None
         case "largest":
             top_rows = sorted(rows, key=lambda r: r.amount_base_minor, reverse=True)[: plan.limit]
             res.title = f"{head}: biggest {len(top_rows)}"
-            res.lines = [_row_line(i, r, tz, cur) for i, r in enumerate(top_rows, 1)]
+            res.lines = [_row_line(i, r, tz, cur, now) for i, r in enumerate(top_rows, 1)]
         case "list":
             shown = sorted(rows, key=lambda r: r.occurred_at, reverse=True)[: max(plan.limit, 10)]
             res.title = f"{head}: {money.fmt(total, cur)} across {n}"
-            res.lines = [_row_line(i, r, tz, cur) for i, r in enumerate(shown, 1)]
+            res.lines = [_row_line(i, r, tz, cur, now) for i, r in enumerate(shown, 1)]
             if n > len(shown):
                 res.lines.append(f"…and {n - len(shown)} more")
         case "top_merchants":
@@ -226,7 +226,7 @@ def execute(s: Session, user: User, plan: QueryPlan, now: datetime | None = None
     return res
 
 
-def _row_line(i: int, r: Transaction, tz: str, base: str) -> str:
+def _row_line(i: int, r: Transaction, tz: str, base: str, now: datetime | None = None) -> str:
     amt = money.fmt(r.amount_minor, r.currency)
     if r.currency != base:
         amt += f" (~{money.fmt(r.amount_base_minor, base)})"
@@ -234,5 +234,5 @@ def _row_line(i: int, r: Transaction, tz: str, base: str) -> str:
     bits = [amt, cat]
     if r.merchant:
         bits.append(r.merchant)
-    bits.append(humanize_when(r.occurred_at, tz))
+    bits.append(humanize_when(r.occurred_at, tz, now))
     return f"{i}. " + " · ".join(bits)

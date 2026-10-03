@@ -53,11 +53,11 @@ async def test_outage_then_recovery(settings, services):
         assert raw.outcome == "llm_unavailable"
         raw.received_at = utcnow() - timedelta(minutes=5)
 
-    # providers come back (here: the offline parser)
+    # providers come back (here: the test stub)
     services.router.config = RouterConfig.from_dict(
         {
             "router": {
-                p: {"primary": "rules/v1"}
+                p: {"primary": "stub/v1"}
                 for p in ["intent", "extract", "categorize", "edit", "delete", "query"]
             }
         }

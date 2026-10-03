@@ -1,5 +1,4 @@
 from pocket.core.normalize import normalize
-from pocket.llm.rules.parser import extract
 
 
 def test_normalize():
@@ -11,6 +10,5 @@ def test_normalize():
     assert normalize("taxi 12\n-- \nShishir") == "taxi 12"
 
 
-def test_nepali_digits_parse(rules_ctx):
-    [t] = extract(normalize("momo २५० रु"), rules_ctx).transactions
-    assert t.amount == 250 and t.currency == "NPR"
+def test_nepali_digits():
+    assert normalize("momo २५० रु") == "momo 250 रु"

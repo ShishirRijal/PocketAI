@@ -49,7 +49,7 @@ def test_health(client):
     assert client.get("/healthz").json() == {"status": "ok"}
     r = client.get("/readyz").json()
     assert r["status"] == "ok" and r["checks"]["db"] == "ok"
-    assert r["checks"]["llm_offline_only"] is True
+    assert r["checks"]["llm_extract_models"] == ["stub/v1"]
 
 
 def test_cli_webhook_roundtrip(client, services):
