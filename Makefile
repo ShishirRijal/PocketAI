@@ -1,4 +1,4 @@
-.PHONY: install test live lint fmt typecheck check serve chat demo eval migrate docker
+.PHONY: install test live lint fmt typecheck check serve dev chat demo eval migrate docker
 
 install:
 	uv sync --extra postgres
@@ -24,6 +24,9 @@ check: lint typecheck test
 
 serve:
 	uv run pocket serve --reload
+
+dev:  ## tunnel + server + discord/telegram webhooks
+	./scripts/dev.sh
 
 chat:
 	uv run pocket chat

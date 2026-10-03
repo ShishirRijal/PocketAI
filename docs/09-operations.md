@@ -64,6 +64,8 @@ flowchart TB
   style C fill:#f8fafc,stroke:#94a3b8,color:#0f172a
 ```
 
+**Local with real chat apps (`make dev` → `scripts/dev.sh`):** starts or reuses an ngrok tunnel to :8080, writes the URL into `.env`, starts `pocket serve`, points the Discord Interactions Endpoint and Telegram webhook at the tunnel, and tails `data/server.log`.
+
 **Production (`docker compose up -d`):**
 - `api` runs `pocket migrate` then uvicorn with proxy headers. It persists and enqueues but doesn't process (`POCKET_SCHEDULER_ENABLED=false`, Redis queue).
 - `worker` runs `pocket worker`: consumes the stream and runs the scheduler, so jobs run in exactly one place. `--scale worker=2` adds more.

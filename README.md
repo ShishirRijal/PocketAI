@@ -125,6 +125,14 @@ src/pocket/
   web/        dashboard (JSON API + static SPA, no build step)
 ```
 
+## Running it with real chat apps (local)
+
+```bash
+make dev    # = ./scripts/dev.sh
+```
+
+It starts (or reuses) an ngrok tunnel to :8080, writes the URL into `.env` as `POCKET_PUBLIC_URL`, starts the server, re-points your Discord app's Interactions Endpoint and the Telegram webhook at the tunnel, then follows the log. Ctrl-C stops it. Run it again whenever the ngrok URL changes.
+
 ## Channels setup
 
 **WhatsApp (Twilio sandbox).** Join the sandbox from your phone and set the sandbox's *When a message comes in* URL to `https://<host>/webhook/whatsapp`. Fill `POCKET_TWILIO_*` and `POCKET_OWNER_WHATSAPP=whatsapp:+<your number>`. `POCKET_PUBLIC_URL` must match the URL Twilio calls, because it's part of the signature.
