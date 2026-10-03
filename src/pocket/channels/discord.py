@@ -161,8 +161,20 @@ class DiscordAdapter:
     async def send(
         self, user_channel_id: str, message: OutboundMessage, meta: dict[str, Any] | None = None
     ) -> None:
-        body = {"content": message.text[:2000], "components": components(message)}
-        if meta and meta.get("interaction_token"):
+        body: dict[str, Any] = {"content": message.text[:2000], "components": components(message)}
+        if meta and meta.get("channel_id") and self.bot_token:
+            # a plain message read by the gateway bot: answer in the same channel
+            if meta.get("message_id"):
+                body["message_reference"] = {
+                    "message_id": meta["message_id"],
+                    "fail_if_not_exists": False,
+                }
+            r = await self.client.post(
+                f"{API}/channels/{meta['channel_id']}/messages",
+                json=body,
+                headers={"Authorization": f"Bot {self.bot_token}"},
+            )
+        elif meta and meta.get("interaction_token"):
             url = f"{API}/webhooks/{meta['application_id']}/{meta['interaction_token']}"
             r = await self.client.post(url, json=body)
         elif self.bot_token:

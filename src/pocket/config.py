@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     discord_public_key: str | None = None
     discord_bot_token: str | None = None
     discord_application_id: str | None = None
+    # bot mode: read plain messages (DMs, @mentions, and this channel if set)
+    discord_gateway: bool = True
+    discord_channel_id: str | None = None
 
     verify_signatures: bool = True
 

@@ -37,6 +37,7 @@ class Runtime:
     stop_event: asyncio.Event = field(default_factory=asyncio.Event)
     tasks: list[asyncio.Task] = field(default_factory=list)
     scheduler: Any = None
+    discord_bot: Any = None
 
     @property
     def cli(self) -> CliAdapter:
@@ -54,11 +55,22 @@ class Runtime:
             self.scheduler = build_scheduler(self)
             self.scheduler.start()
             log.info("scheduler started")
+        # the discord bot lives with the worker, so exactly one process holds the gateway
+        if worker and self.settings.discord_gateway and self.settings.discord_bot_token:
+            from pocket.channels.discord_gateway import GatewayBot
+
+            self.discord_bot = GatewayBot(
+                self, self.settings.discord_bot_token, self.settings.discord_channel_id
+            )
+            self.discord_bot.start()
+            log.info("discord bot mode starting")
 
     async def stop(self) -> None:
         self.stop_event.set()
         if self.scheduler is not None:
             self.scheduler.shutdown(wait=False)
+        if self.discord_bot is not None:
+            await self.discord_bot.stop()
         for t in self.tasks:
             try:
                 await asyncio.wait_for(t, timeout=5)
