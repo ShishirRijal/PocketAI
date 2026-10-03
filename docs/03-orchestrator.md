@@ -78,7 +78,7 @@ A **`Proposal`** (`core/policy.py`) is a transaction that hasn't been saved yet.
 ```mermaid
 flowchart LR
   M{"merchant seen before?<br/>(most common category<br/>for 'Rimi')"}:::store -- yes --> A["use it<br/>conf 0.95"]:::core
-  M -- no --> N{"category_hint matches<br/>a category?<br/>exact / stem / keyword / fuzzy"}:::core
+  M -- no --> N{"the LLM's category_hint<br/>matches one of yours?<br/>exact / plural / typo"}:::core
   N -- "score ≥ 0.85" --> B["use it"]:::core
   N -- no --> L["LLM categorizer<br/>with your category list"]:::ai
   L -- "picked an existing id" --> C["use it"]:::core
@@ -92,7 +92,7 @@ flowchart LR
   classDef ask fill:#fee2e2,stroke:#dc2626,color:#0f172a
 ```
 
-Most messages never reach the LLM categorizer: "grocery" → "Groceries" by stemming, "coffee" → "Cafes" by keyword, "Rimi" → wherever Rimi went last time. New categories always need your OK, which stops "Grocery", "Groceries" and "Food shopping" from all existing at once.
+Most messages never need a separate categorizer call: the extractor already suggests a category from your list ("Groceries"), which is matched by name ("Grocery" and "Groceries" count as the same), and a known merchant goes wherever it went last time. New categories always need your OK, which stops "Grocery", "Groceries" and "Food shopping" from all existing at once.
 
 ### Policy: save, or ask?
 

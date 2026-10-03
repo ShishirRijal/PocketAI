@@ -22,7 +22,8 @@ All settings come from environment variables (or `.env`), prefixed `POCKET_`, de
 | `POCKET_DISCORD_PUBLIC_KEY` / `_BOT_TOKEN` / `_APPLICATION_ID` | – | Discord |
 | `POCKET_VERIFY_SIGNATURES` | `true` | only turn off in local testing |
 | `POCKET_LLM_CONFIG_PATH` | `config/llm.yaml` | `config/llm.local.yaml` for Ollama-only |
-| `POCKET_LLM_DAILY_COST_CAP_USD` | `1.0` | after this, free backends only |
+| `POCKET_LLM_PROVIDER_ORDER` | – (YAML order: OpenAI, Gemini) | e.g. `gemini,openai` re-sorts every chain |
+| `POCKET_LLM_DAILY_COST_CAP_USD` | `1.0` | after this, no more model calls until midnight UTC |
 | `POCKET_LLM_TIMEOUT_S` | `10` | per model call |
 | `POCKET_CONFIDENCE_COMMIT` / `_ASK` | `0.85` / `0.6` | policy thresholds |
 | `POCKET_UNDO_WINDOW_MINUTES` / `_PENDING_TTL_MINUTES` / `_DUPLICATE_WINDOW_MINUTES` | 5 / 15 / 5 | conversation timing |
@@ -31,7 +32,7 @@ All settings come from environment variables (or `.env`), prefixed `POCKET_`, de
 | `POCKET_DIGEST_WEEKDAY` / `_HOUR` | 6 / 20 | Sunday 20:00 local |
 | `POCKET_BACKUP_KEEP` / `_BACKUP_AZURE_SAS_URL` | 14 / – | backups |
 | `POCKET_PURGE_DELETED_AFTER_DAYS` | 0 (off) | hard-delete old soft-deleted rows |
-| `GEMINI_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `OLLAMA_API_BASE` | – | models without a key are skipped |
+| `OPENAI_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `OLLAMA_API_BASE` | – | at least one is required; models without a key are skipped |
 
 ## Ways to run it
 
@@ -138,15 +139,15 @@ flowchart TB
   L["live (opt-in, costs cents)<br/>pytest -m live: golden set through the real chain"]:::ai
   E["eval<br/>pocket eval: per-model accuracy / latency / cost"]:::ai
   I["integration: 87<br/>full conversations, webhooks + signatures,<br/>dashboard API, media, recurring, outage recovery<br/>(also run on Postgres in CI)"]:::core
-  U["unit + golden: 56 + 33<br/>router + chaos, rules parser, golden set,<br/>money/dates, fx, guards, channels, redis backends"]:::core
+  U["unit: 56<br/>router + chaos, provider order,<br/>money/dates, fx, guards, channels, redis backends"]:::core
   L --- E --- I --- U
 
   classDef core fill:#dcfce7,stroke:#16a34a,color:#0f172a
   classDef ai fill:#ffedd5,stroke:#ea580c,color:#0f172a
 ```
 
-- `make test` (or `uv run pytest`) runs everything offline in ~10 s: no network, no keys.
-- Integration tests use a fixed clock (Monday 21:14 Tallinn), the offline parser, a static FX table and a `FakeBackend` for scripted LLM answers.
+- `make test` (or `uv run pytest`) runs everything in ~10 s: no network, no keys.
+- Integration tests use a fixed clock (Monday 21:14 Tallinn), a scripted **stub LLM** (`tests/support/stub_llm/`, test-only: word lists that fill the same schemas a model would), a static FX table, and a `FakeBackend` for exact per-test LLM answers.
 - `POCKET_TEST_DATABASE_URL=postgresql+psycopg://… uv run pytest tests/integration` runs the integration suite on Postgres.
 - CI (`.github/workflows/ci.yml`): lint → mypy → tests → migrations, then the Postgres job, then the image build/push to GHCR, then an optional SSH deploy.
 
@@ -158,7 +159,7 @@ flowchart TB
 
 **Add or reorder a model.** Edit `config/llm.yaml`: any LiteLLM model id works (`anthropic/claude-…`, `ollama_chat/…`), plus the matching API key in `.env`. Then `POST /admin/reload` or restart, and `pocket eval --models <id>` to see how it does.
 
-**Add an LLM stage.** Define the output schema in `llm/schemas.py`, write `llm/prompts/<stage>.md`, add a `Pipeline` method in `llm/stages.py`, map the purpose to a chain in `llm.yaml`, and ideally teach `llm/rules/parser.py` an offline version so the chain has a free fallback.
+**Add an LLM stage.** Define the output schema in `llm/schemas.py`, write `llm/prompts/<stage>.md`, add a `Pipeline` method in `llm/stages.py`, map the purpose to a chain in `llm.yaml`, and teach the test stub (`tests/support/stub_llm/parser.py`) to answer it so conversation tests can cover it.
 
 **Change a table.** Edit `data/models.py`, run `uv run alembic revision --autogenerate -m "…"`, review the file, and commit it.
 
@@ -169,8 +170,9 @@ flowchart TB
 | WhatsApp: no reply, 403 in logs | `POCKET_PUBLIC_URL` doesn't match the URL Twilio calls, or the wrong auth token |
 | WhatsApp: worked, then silence | sandbox expired after 3 days; send `join <code>` again |
 | Replies say "parsers are having a moment" | every model in a chain failed; check `/readyz` and `/admin/llm_calls` |
-| Replies are slow sometimes | Gemini free tier tail latency (p95 ~15 s in the benchmark); put `openai/gpt-4o-mini` first in `llm.yaml` |
+| Replies are slow sometimes | a fallback to Gemini happened (its free tier p95 was ~15 s in the benchmark); check `/admin/llm_calls` for why OpenAI failed |
 | "Hit today's AI budget" | `POCKET_LLM_DAILY_COST_CAP_USD` reached; commands still work |
+| "My parsers are having a moment" on every message | no working API key; `/readyz` lists usable models |
 | Telegram: nothing arrives | run `pocket telegram-webhook`; check the secret |
 | Dashboard redirects to login forever | no/incorrect `POCKET_ADMIN_TOKEN`, or the cookie is `Secure` on plain http |
 | `database is locked` | two processes writing the same SQLite file heavily; use Postgres or `queue_backend=redis` with one writer |

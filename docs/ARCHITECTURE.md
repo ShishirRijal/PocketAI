@@ -69,7 +69,7 @@ nudges) and `media_handler`.
 ### Categorization is deterministic first
 
 1. Learned merchant mapping: where did this merchant go most often before?
-2. Name/stem/keyword/fuzzy match of the extractor's `category_hint` against the user's categories.
+2. Name / plural / typo match of the extractor's `category_hint` against the user's categories.
 3. Only then the LLM categorizer. If it proposes a new name, that is fuzzily matched again; a truly new category needs the user's confirmation (a / b / c).
 
 Most messages never need a categorizer call.
@@ -98,9 +98,9 @@ proposals instead of the saved transactions, then asking again.
   - schema validation failure → same model once more, then next
   - 404 / auth → next model, and bench this one for an hour
   - within 5% of a configured free-tier quota → skipped before calling (counters in Redis when available)
-  - daily cost cap hit → only `free` backends run (the offline rules parser)
-- **Backends by model prefix:** `rules/*` (offline parser), `fake/*` (tests), everything else via LiteLLM. Models without credentials are skipped, so the same config works with any subset of keys.
-- **`rules/v1`** (`llm/rules/`) implements every stage deterministically: currency/amount lexer (€, eur, rs, rupees, 1.2k, 6,50, 1,200), multi-transaction splitting, dates (aja/hijo/yesterday/on friday/15 sep/3 days ago), merchants, people, lending verbs, query planning. It's the last fallback everywhere, and the default with no keys.
+  - daily cost cap hit → no more paid calls today; the reply says so and commands keep working
+- **Priority:** OpenAI (`gpt-4o-mini`) first, Gemini as the fallback in every chain. `POCKET_LLM_PROVIDER_ORDER=gemini,openai` re-sorts every chain without editing the YAML.
+- **Backends:** everything goes through LiteLLM. Models without credentials are skipped, so the same config works with either key. Tests register a scripted stub model (`tests/support/stub_llm/`) that the app never uses.
 - **Guards** (`llm/guards.py`) check extraction output deterministically before policy sees it:
   an explicit currency token in the text ("£8", "₹450", "30 npr") overrides the model's
   currency, and an amount that doesn't appear among the message's numbers gets its
@@ -145,7 +145,8 @@ HttpOnly cookie. Bearer tokens also work (personal API).
 
 ## 7. Deviations from the design doc, and why
 
-1. **Models.** `gemini-2.5-*` return 404 for new API keys and `2.5-pro` has no free quota, so the chains use `gemini-flash-lite-latest` (fast, reliable) and `gemini-3.8-flash`, with `gpt-4o-mini` as the paid safety net. Measured: 3.8-flash returns 503 "high demand" often and is ~2x slower than flash-lite with no accuracy gain on the golden set, so it's a fallback, except for query planning.
+1. **Models.** OpenAI's `gpt-4o-mini` is primary (you have free credits) with Gemini as the fallback, the reverse of the doc's free-first Gemini ordering; one setting flips it back. On Gemini, `gemini-2.5-*` return 404 for new API keys and `2.5-pro` has no free quota, so the Gemini fallbacks are `gemini-flash-lite-latest` and `gemini-3.8-flash`.
+6. **No offline fallback parser.** An earlier version shipped a regex-based parser as the last fallback; it was removed on purpose. If every provider is down, messages wait in `raw_messages` and are retried.
 2. **Dashboard auth** is token → cookie, not Google OAuth. A single-user tool shouldn't need an OAuth app (see ROADMAP.md).
 3. **Discord** uses the HTTP interactions endpoint (slash commands + buttons), not a gateway bot, to keep the service stateless. Plain DMs to the bot are therefore not received.
 4. **Tags (Stage D)** come from the extractor's structured output plus deterministic normalization, instead of a separate LLM call. Same result, one fewer call per message.

@@ -30,8 +30,8 @@ Pocket: This week (so far) · Groceries: €29.00 spent across 1 transaction.
 ## What makes it more than a prompt
 
 - **A staged LLM pipeline, not one prompt.** Intent → extraction (structured JSON schema) → categorization → policy. Each stage is small, testable and has its own model chain. Anything deterministic (undo, edit 2 amount 29, show week, budgets) never touches a model.
-- **Vendor-agnostic, free-first routing.** Gemini → Grok → OpenAI → an **offline rule-based parser**, per stage, via LiteLLM. Fallback triggers on rate limits, timeouts, 5xx, context overflow and **schema-validation failures** (retry once, then move on). Models near their free-tier quota are skipped before they 429. There's a daily $ cap, and past it only free backends run.
-- **Works with zero API keys.** The rules backend handles the common shapes ("23 eur groceries at rimi", "sorry it was 29", "how much grocery this month?", romanized Nepali) and reports honest confidence, so shaky parses ask for confirmation.
+- **Vendor-agnostic routing.** OpenAI → Gemini per stage, via LiteLLM (one setting, `POCKET_LLM_PROVIDER_ORDER=gemini,openai`, flips the priority everywhere). Fallback triggers on rate limits, timeouts, 5xx, context overflow and **schema-validation failures** (retry once, then move on). Models near their free-tier quota are skipped before they 429. There's a daily $ cap.
+- **Provider outages don't lose messages.** If every model is down, the message is already saved; the user is told, and a background job retries it.
 - **The LLM proposes; the system confirms.** Deterministic guards check every extraction (an explicit "£"/"₹"/"npr" in the text beats the model's currency; an amount that isn't in the message forces a confirmation), plus confidence gating, novel-category confirmation (no category explosion), duplicate detection, multi-transaction confirmation.
 - **Nothing is lost or silently overwritten.** Every inbound message is persisted before processing (idempotent on the provider's message id, so webhook retries can't double-log). Every edit writes a version row. Deletes are soft. Undo is exact.
 - **Debuggable.** Every LLM call is logged with request/response, tokens, latency and cost. `/admin/replay/<id>` re-runs any stored message as a dry run. JSON logs have one line per message with the pipeline stages.
@@ -55,20 +55,18 @@ Pocket: This week (so far) · Groceries: €29.00 spent across 1 transaction.
 
 | held-out (26 msgs) | intent | extraction | category | p50 | p95 | list cost |
 |---|---|---|---|---|---|---|
-| `rules/v1` (offline, free) | 100% | 100% | 94% | 0 ms | 1 ms | $0 |
-| `gemini-flash-lite-latest` | 100% | 100% | 93% | 1.2 s | 14.9 s | $0.015 (free tier) |
-| `gpt-4o-mini` | 100% | 100% | 88% | 1.2 s | 2.0 s | $0.006 |
-
-The offline parser holding up this well is what makes "works with zero API keys" real. The LLMs earn their keep on phrasing no regex anticipates, and in the edit/query stages.
+| `gpt-4o-mini` (primary) | 100% | 100% | 88% | 1.2 s | 2.0 s | $0.006 |
+| `gemini-flash-lite-latest` (fallback) | 100% | 100% | 93% | 1.2 s | 14.9 s | $0.015 (free tier) |
 
 ## Quickstart (local, 2 minutes)
 
 ```bash
 uv sync
-uv run pocket chat              # talk to it in the terminal (works without API keys)
+echo "OPENAI_API_KEY=sk-..." >> .env   # and/or GEMINI_API_KEY
+uv run pocket chat              # talk to it in the terminal
 ```
 
-Add `GEMINI_API_KEY` and/or `OPENAI_API_KEY` to `.env` to use real models (see `.env.example`). Then:
+At least one of `OPENAI_API_KEY` / `GEMINI_API_KEY` is required (see `.env.example`). Then:
 
 ```bash
 uv run pocket demo --months 6   # optional: realistic fake history
@@ -80,7 +78,7 @@ open "http://localhost:8080/app?token=dev"
 
 | Say | What happens |
 |---|---|
-| `12.50 lunch at wolt` | logged (category from keywords, merchant history or the LLM) |
+| `12.50 lunch at wolt` | logged (category from your merchant history or the LLM) |
 | `coffee 4 and metro 2` | asks to confirm both, or pick `1`/`2` |
 | `sorry it was 29` / `make that groceries` | edits the last one (or whichever you describe) |
 | `undo` (`u`) | reverts the last add/edit/delete, within 5 min |
@@ -103,7 +101,7 @@ flowchart LR
   WA["WhatsApp"]:::user & TG["Telegram"]:::user & DC["Discord"]:::user & CLI["CLI / web"]:::user --> IN["Webhook +<br/>signature check"]:::edge
   IN --> RAW[("raw_messages<br/>idempotent")]:::store --> Q["Queue<br/>asyncio or Redis Streams"]:::store
   Q --> W["Worker"]:::core --> O["Orchestrator<br/>state machine"]:::core
-  O -- "stage calls" --> R["LLM router"]:::ai --> G["Gemini"]:::ai & OA["OpenAI"]:::ai & RU["rules/v1 offline"]:::core
+  O -- "stage calls" --> R["LLM router"]:::ai --> OA["OpenAI"]:::ai & G["Gemini"]:::ai
   O <--> DB[("SQLite / Postgres")]:::store
   O --> OUT["Channel adapter"]:::edge --> WA & TG & DC & CLI
 
@@ -121,7 +119,7 @@ src/pocket/
   channels/   whatsapp · telegram · discord · cli adapters (normalize in, render out)
   api/        webhooks · admin (replay, cost) · health
   core/       orchestrator · policy · commands · session · queue · ingest · dispatch
-  llm/        router (fallback chains) · stages · prompts/*.md · schemas · rules/ (offline parser)
+  llm/        router (fallback chains) · stages · prompts/*.md · schemas · guards
   data/       models · repositories · alembic migrations
   services/   fx · queries · budgets · recurring · lending · digests · exports · backups · media
   web/        dashboard (JSON API + static SPA, no build step)
@@ -160,9 +158,9 @@ Migrations run at container start. Data (SQLite, backups, exports) lives in `./d
 ## Development
 
 ```bash
-uv run pytest            # ~140 tests, no network needed
+uv run pytest            # ~140 tests, no network needed (a stub LLM stands in)
 uv run pytest -m live    # golden set against the real LLM chain (needs keys)
 uv run ruff check src tests && uv run mypy src
 ```
 
-Tests include a **chaos backend** that randomly fails, returns malformed JSON, rate-limits and times out, to exercise the fallback paths. `tests/fixtures/messages.jsonl` is the golden set of messages and expected parses.
+Tests run against a scripted **stub LLM** (`tests/support/stub_llm/`, test-only, never used by the app) and a **chaos backend** that randomly fails, returns malformed JSON, rate-limits and times out, to exercise the fallback paths. `tests/fixtures/messages.jsonl` is the golden set of messages and expected parses.

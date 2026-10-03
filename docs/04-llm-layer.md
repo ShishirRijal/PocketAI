@@ -3,7 +3,7 @@
 Everything that talks to a model lives in `src/pocket/llm/`. Three ideas:
 
 1. **Stages, not one prompt.** Each stage asks one narrow question and gets back a typed pydantic object.
-2. **Every stage has a fallback chain.** Gemini → OpenAI → the offline rules parser, per stage, with explicit failover rules.
+2. **Every stage has a fallback chain.** OpenAI → Gemini, per stage, with explicit failover rules.
 3. **Model output is a proposal.** Deterministic guards and the policy layer decide what's actually saved.
 
 ## The stages
@@ -64,14 +64,17 @@ Prompts are plain markdown with `{{variables}}`. Change the wording there, never
 
 ```yaml
 router:
-  fast:       { primary: gemini/gemini-flash-lite-latest, fallbacks: [xai/grok-4-fast, openai/gpt-4o-mini, rules/v1] }
-  extractor:  { primary: gemini/gemini-flash-lite-latest, fallbacks: [openai/gpt-4o-mini, gemini/gemini-3.8-flash, xai/grok-4, rules/v1] }
-  resolver:   { primary: gemini/gemini-flash-lite-latest, fallbacks: [openai/gpt-4o-mini, rules/v1] }
-  query:      { primary: gemini/gemini-3.8-flash, fallbacks: [openai/gpt-4o-mini, gemini/gemini-flash-lite-latest, rules/v1] }
-  vision:     { primary: gemini/gemini-3.8-flash, fallbacks: [openai/gpt-4o-mini] }
+  fast:       { primary: openai/gpt-4o-mini, fallbacks: [gemini/gemini-flash-lite-latest] }
+  extractor:  { primary: openai/gpt-4o-mini, fallbacks: [gemini/gemini-flash-lite-latest, gemini/gemini-3.8-flash] }
+  resolver:   { primary: openai/gpt-4o-mini, fallbacks: [gemini/gemini-flash-lite-latest] }
+  query:      { primary: openai/gpt-4o-mini, fallbacks: [gemini/gemini-3.8-flash, gemini/gemini-flash-lite-latest] }
+  summarizer: { primary: openai/gpt-4o-mini, fallbacks: [gemini/gemini-flash-lite-latest] }
+  vision:     { primary: openai/gpt-4o-mini, fallbacks: [gemini/gemini-3.8-flash] }
 purposes: { intent: fast, extract: extractor, categorize: extractor, edit: resolver, delete: resolver, query: query, receipt: vision, summarize: summarizer }
 quotas:   { gemini/gemini-3.8-flash: {rpm: 10, rpd: 250}, gemini/gemini-flash-lite-latest: {rpm: 15, rpd: 1000} }
 ```
+
+**Switching priority.** Set `POCKET_LLM_PROVIDER_ORDER=gemini,openai` in `.env` and every chain is re-sorted by provider (`RouterConfig.reordered()`), keeping the order within each provider. There's no need to edit the YAML. Remove the setting to go back to the YAML order (OpenAI first).
 
 `router.structured(purpose, prompt, Schema)` walks the chain:
 
@@ -79,7 +82,7 @@ quotas:   { gemini/gemini-3.8-flash: {rpm: 10, rpd: 250}, gemini/gemini-flash-li
 flowchart TD
   START["next model in chain"]:::ai --> AV{"credentials in env?<br/>(litellm.validate_environment)"}:::core
   AV -- no --> SKIP["skip"]:::core --> START
-  AV -- yes --> CAP{"daily $ cap hit<br/>and model isn't free?"}:::core
+  AV -- yes --> CAP{"daily $ cap hit?"}:::core
   CAP -- yes --> SKIP
   CAP -- no --> QT{"within 5% of its<br/>free-tier quota?<br/>or benched?"}:::store
   QT -- yes --> SKIP
@@ -99,13 +102,13 @@ flowchart TD
   classDef ask fill:#fee2e2,stroke:#dc2626,color:#0f172a
 ```
 
-**Backends** are picked by model prefix: `rules/*` → the offline parser, `fake/*` → the test double, anything else → `LiteLLMBackend` (Gemini, OpenAI, xAI, Anthropic, Ollama all speak through LiteLLM). A backend with `free = True` (rules, fake) keeps working after the daily cost cap.
+**Backends** are picked by model prefix. In the app everything goes to `LiteLLMBackend` (OpenAI, Gemini, xAI, Anthropic and Ollama all speak through LiteLLM). Tests register extra prefixes (`stub/*`, `fake/*`) for scripted stand-ins.
 
 **Why not LiteLLM's own Router?** The failover rules are specific (retry once only on schema failure, bench models that 404, respect quotas before calling, logging per attempt), and they're easier to test when written out.
 
 **Quota tracking** (`llm/quota.py`) counts requests per model per minute and per day, in Redis when available (so the API and workers share counts) or in memory otherwise.
 
-**Cost cap:** `DailyCostGuard` in `wiring.py` sums today's `llm_calls.cost_usd` (cached 5 s) and flips the router into free-only mode at `POCKET_LLM_DAILY_COST_CAP_USD` (default $1).
+**Cost cap:** `DailyCostGuard` in `wiring.py` sums today's `llm_calls.cost_usd` (cached 5 s). At `POCKET_LLM_DAILY_COST_CAP_USD` (default $1) paid models stop being called and the reply says so; commands keep working, and it resets at midnight UTC.
 
 ## Guards (`llm/guards.py`)
 
@@ -116,40 +119,20 @@ Cheap deterministic checks on every extraction, before policy sees it:
 | `currency_guard` | if the text has an explicit currency next to an amount ("£8", "₹450", "30 npr"), that currency wins | the benchmark caught models reading ₹ as NPR and £ as EUR |
 | `amount_guard` | if the text has digits but a proposed amount isn't one of them, cap confidence at 0.5 | a hallucinated number then triggers "Save it?" instead of being saved |
 
-## The offline parser (`llm/rules/`)
-
-`rules/v1` is a real backend that fills the same schemas deterministically. It's the last fallback in every text chain and the only model when no keys are set.
-
-```mermaid
-flowchart LR
-  T["'coffee w/ arjun 6.50<br/>and then metro 2'"]:::user --> D["find_date<br/>(today, hijo, last friday,<br/>15 sep, 3 days ago)"]:::core
-  D --> A["find_amounts<br/>€ eur rs ₹ £ 1.2k 6,50 1,200<br/>skips 5pm, 3 days, 15th"]:::core
-  A --> S["split_segments<br/>one segment per amount,<br/>cut at and/then/ani/,"]:::core
-  S --> F["per segment:<br/>merchant (known list, 'at X')<br/>category keyword<br/>people ('with X', 'X sanga')<br/>direction (income, lending)"]:::core
-  F --> O["ExtractedTransaction ×2<br/>+ honest confidence"]:::core
-
-  classDef user fill:#dbeafe,stroke:#2563eb,color:#0f172a
-  classDef core fill:#dcfce7,stroke:#16a34a,color:#0f172a
-```
-
-- `lexicon.py` holds the word lists: currency words (including रु, rupiya, bucks), category keywords (Rimi → Groceries, chiya → Cafes, momo → Restaurants…), known merchants, weekdays/months in English and Nepali, income and lending verbs.
-- `parser.py` has one function per stage: `classify_intent`, `extract`, `categorize`, `resolve_edit`, `resolve_delete`, `plan_query`.
-- Its confidence is honest: no category keyword → −0.25; bare number with nothing else ("12") → another −0.25. So uncertain parses ask for confirmation.
-
 ## Measuring it: `pocket eval` (`services/evaluate.py`)
 
 Runs two message sets against each model on its own:
 
-- `tests/fixtures/messages.jsonl`, the **golden set**, which the rules parser was developed against,
-- `tests/fixtures/holdout.jsonl`, the **held-out set**, written afterwards and never tuned on (except one real bug it caught).
+- `tests/fixtures/messages.jsonl`, the **golden set** (33 messages from the design doc and real use),
+- `tests/fixtures/holdout.jsonl`, the **held-out set** (26 more, written later).
 
-It paces calls to each model's free-tier rpm, retries 429/503s, counts provider errors separately from wrong answers, and gives up on a model after 5 errors in a row. Results: [eval.md](eval.md). On the held-out set, flash-lite and gpt-4o-mini both scored 100% on intent and extraction.
+It paces calls to each model's free-tier rpm, retries 429/503s, counts provider errors separately from wrong answers, and gives up on a model after 5 errors in a row. Results: [eval.md](eval.md). On the held-out set, gpt-4o-mini and flash-lite both scored 100% on intent and extraction.
 
 `pytest -m live` runs the golden set through the **full chain** (what production uses) as a regression test.
 
 ## Tests without models
 
-`llm/backends/fake.py` has:
+The test suite never calls a real provider. `tests/support/stub_llm/` is a scripted stand-in model (word lists + regex) that fills the same schemas deterministically, so ~140 conversation tests run in seconds with no keys. It lives under `tests/` and is never imported by the app. `llm/backends/fake.py` adds:
 - `FakeBackend`: queue exact responses per stage (`fake.queue("categorize", {...})`) to script a conversation,
 - `BrokenBackend`: always fails, to test fallthrough,
 - `ChaosBackend`: randomly returns 503, 429, timeouts and malformed JSON around a real backend. The router tests run 20 chaotic calls and require every one to land.

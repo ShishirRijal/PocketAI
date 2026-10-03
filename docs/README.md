@@ -7,7 +7,7 @@ Read these in order the first time. Each one stands on its own after that.
 | 1 | [Overview](01-overview.md) | what Pocket is, the big picture, where every file lives |
 | 2 | [Life of a message](02-message-lifecycle.md) | exactly what happens between "23 eur groceries" and the ✅ reply |
 | 3 | [The orchestrator](03-orchestrator.md) | the state machine: commands, intents, confirmations, undo |
-| 4 | [The LLM layer](04-llm-layer.md) | stages, prompts, fallback chains, guards, the offline parser, the benchmark |
+| 4 | [The LLM layer](04-llm-layer.md) | stages, prompts, OpenAI → Gemini fallback chains, guards, the benchmark |
 | 5 | [Data model](05-data-model.md) | every table, money rules, versions and soft deletes |
 | 6 | [Features & commands](06-features.md) | everything you can say, and how each feature works inside |
 | 7 | [Channels](07-channels.md) | WhatsApp, Telegram, Discord, CLI/web: auth, parsing, replies |

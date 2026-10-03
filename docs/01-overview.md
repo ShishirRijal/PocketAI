@@ -48,12 +48,10 @@ flowchart TD
   subgraph Brain["④ Understanding language"]
     direction LR
     R["LLM router<br/>per-stage fallback"]:::ai
-    GEM["Gemini"]:::ai
-    OAI["OpenAI"]:::ai
-    RULES["rules/v1<br/>offline parser"]:::core
-    R --> GEM
+    OAI["OpenAI<br/>(first)"]:::ai
+    GEM["Gemini<br/>(fallback)"]:::ai
     R --> OAI
-    R --> RULES
+    R --> GEM
   end
 
   DB[("⑤ SQLite / Postgres")]:::store
@@ -87,7 +85,7 @@ Read it left to right:
 - **The edge** (purple) proves the request really came from that platform (signature check) and turns it into one common shape, `InboundMessage`.
 - **The ingestor** checks you're on the allowlist, saves the raw message to the DB *before doing anything else*, and puts its id on a queue. The webhook returns 200 immediately.
 - **The worker** picks the id off the queue and hands it to the **orchestrator**, the brain. It decides what the message is and what to do about it.
-- The orchestrator calls the **LLM router** only where language understanding is needed. The router tries Gemini, then OpenAI, then the offline `rules/v1` parser, per stage.
+- The orchestrator calls the **LLM router** only where language understanding is needed. The router tries OpenAI first, then Gemini, per stage (`POCKET_LLM_PROVIDER_ORDER` flips that).
 - **Policy and guards** (green) are plain Python that decide whether to save, ask, or refuse. The LLM never writes to the database directly.
 - The reply goes back out through the same channel adapter.
 
@@ -100,7 +98,6 @@ Read it left to right:
 | **Nothing is silently overwritten.** | Every edit writes a `transaction_versions` row; deletes are soft (`deleted_at`); undo reverses exact versions. |
 | **The channel is a detail.** | The orchestrator only sees `InboundMessage` / `OutboundMessage` (`channels/base.py`). |
 | **Deterministic where possible.** | Commands (`undo`, `edit 2 amount 29`, `budgets`...) never touch an LLM. Categorization tries merchant history and name matching before asking a model. |
-| **Works without API keys.** | `llm/rules/` implements every stage offline, as the last fallback everywhere. |
 | **Money is integers.** | `amount_minor` (cents). Conversions happen once, at write time (`core/money.py`). |
 
 ## Repository map
@@ -137,7 +134,7 @@ PocketAI/
 │   │   ├── dispatch.py      worker side: run orchestrator, send replies, proactive sends
 │   │   ├── session.py       short-lived state for undo and numbered lists (Redis or DB)
 │   │   ├── normalize.py     stage 0: unicode, signatures, Devanagari digits
-│   │   ├── categorize.py    category name/keyword/fuzzy matching
+│   │   ├── categorize.py    map a category name onto your categories (exact / plural / typo)
 │   │   ├── dates.py         "yesterday", "aja", "last friday", period ranges in your timezone
 │   │   ├── money.py         minor units, formatting, conversion
 │   │   ├── directions.py    expense/income/transfer + lending directions
@@ -153,8 +150,7 @@ PocketAI/
 │   │   ├── quota.py         free-tier request counters
 │   │   ├── cache.py         prompt assembly for provider-side prompt caching
 │   │   ├── prompts/*.md     the prompts, one per stage
-│   │   ├── backends/        litellm_backend.py (real models), rules.py, fake.py (tests, chaos)
-│   │   └── rules/           the offline parser: lexicon.py + parser.py
+│   │   └── backends/        litellm_backend.py (real models), fake.py (tests, chaos)
 │   │
 │   ├── data/
 │   │   ├── models.py        SQLAlchemy tables (read doc 5)
@@ -184,7 +180,7 @@ PocketAI/
 │       └── static/          index.html, app.js, app.css, manifest (no build step)
 │
 ├── config/llm.yaml          model chains per stage, quotas (llm.local.yaml for Ollama)
-├── tests/                   unit/, integration/, replay/ (golden + live), fixtures/*.jsonl
+├── tests/                   unit/, integration/, replay/ (live), fixtures/*.jsonl, support/stub_llm (test-only stand-in model)
 ├── docs/                    you are here
 ├── Dockerfile  docker-compose.yml  deploy/  .github/workflows/ci.yml
 └── Makefile  pyproject.toml  alembic.ini  .env.example  ROADMAP.md

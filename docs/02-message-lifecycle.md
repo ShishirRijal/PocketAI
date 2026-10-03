@@ -41,7 +41,7 @@ sequenceDiagram
   O->>O: normalize() · pending? · command? (no)
   end
   rect rgb(255, 237, 213)
-  O->>R: intent → ADD (0.95)
+  O->>R: intent → ADD (0.95) via gpt-4o-mini
   O->>R: extract → 23 EUR, merchant Rimi, hint Groceries
   end
   rect rgb(220, 252, 231)
@@ -170,8 +170,7 @@ flowchart TD
   U --> M["raw_messages.outcome =<br/>llm_unavailable"]:::store
   M --> J["reprocess_stuck job<br/>every 2 min"]:::job
   J --> Q["re-enqueue"]:::store
-  E -- "daily $ cap hit" --> C["only free backends run<br/>(offline parser)"]:::core
-  C -- "chain has none" --> CC["reply: 'hit today's AI budget'"]:::user
+  E -- "daily $ cap hit" --> CC["reply: 'hit today's AI budget'<br/>(commands still work)"]:::user
 
   classDef user fill:#dbeafe,stroke:#2563eb,color:#0f172a
   classDef core fill:#dcfce7,stroke:#16a34a,color:#0f172a
@@ -180,6 +179,6 @@ flowchart TD
   classDef job fill:#fce7f3,stroke:#db2777,color:#0f172a
 ```
 
-In practice the offline `rules/v1` parser sits at the end of every text chain, so "all models failed" almost never happens. It does happen for photos (vision), which the offline parser can't read.
+With two providers (OpenAI, then Gemini) both have to be down at once for this to happen. Even then nothing is lost: the message waits in `raw_messages` and is processed when a provider is back. Commands (`undo`, `edit 2 amount 29`, `budgets`) never need a model, so they keep working throughout.
 
 Next: [3. The orchestrator](03-orchestrator.md)
