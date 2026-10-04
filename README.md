@@ -1,5 +1,7 @@
 # Pocket
 
+[![ci](https://github.com/ShishirRijal/PocketAI/actions/workflows/ci.yml/badge.svg)](https://github.com/ShishirRijal/PocketAI/actions/workflows/ci.yml)
+
 **A personal finance memory you talk to.** Text it the way you'd text a friend (on WhatsApp, Telegram, Discord or a terminal) and it extracts, categorizes, tags, converts currency and stores it. When it isn't sure, it asks first.
 
 ```
