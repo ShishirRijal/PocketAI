@@ -65,6 +65,6 @@ async def test_outage_then_recovery(settings, services):
     assert await reprocess_stuck(rt) == 1
     raw_id = rt.queue._q.get_nowait()
     replies = await rt.dispatcher.process(raw_id)
-    assert "✅ Logged €12.00" in replies[0].text
+    assert "Logged €12.00" in replies[0].text
     with services.db.session() as s:
         assert s.scalars(select(RawMessage.outcome)).one() == "added"

@@ -43,6 +43,10 @@ class ExtractedTransaction(BaseModel):
         "expense", "income", "transfer", "lent", "borrowed", "got_back", "paid_back"
     ] = "expense"
     merchant: str | None = None
+    location: str | None = Field(
+        default=None,
+        description="where it happened if mentioned: a place, area or city ('Pirita beach', 'Kathmandu'); not the shop name",
+    )
     category_hint: str | None = Field(
         default=None, description="best guess category, prefer one of the user's categories"
     )
@@ -75,7 +79,7 @@ class CategorizationResult(BaseModel):
 
 
 EditField = Literal[
-    "amount", "currency", "category", "merchant", "note", "date", "direction", "tags"
+    "amount", "currency", "category", "merchant", "location", "note", "date", "direction", "tags"
 ]
 
 

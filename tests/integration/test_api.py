@@ -56,7 +56,7 @@ def test_cli_webhook_roundtrip(client, services):
     h = {"Authorization": "Bearer secret"}
     r = client.post("/webhook/cli", json={"text": "23 eur groceries at rimi"}, headers=h)
     assert r.status_code == 200
-    assert "✅ Logged €23.00 · Groceries" in r.json()["text"]
+    assert "Logged €23.00 · Groceries" in r.json()["text"]
     assert client.post("/webhook/cli", json={"text": "hi"}).status_code == 401
 
 

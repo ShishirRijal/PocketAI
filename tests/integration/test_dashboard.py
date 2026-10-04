@@ -174,3 +174,14 @@ def test_plans_goals(client):
         x for x in client.get("/api/v1/plans", headers=H).json()["goals"] if x["slug"] == "japan"
     )
     assert g["saved_minor"] == 50000 and g["target_minor"] == 200000
+
+
+def test_location_in_api(client):
+    t = client.get("/api/v1/transactions?period=all_time&page_size=1", headers=H).json()["items"][0]
+    r = client.patch(
+        f"/api/v1/transactions/{t['id']}", json={"location": "Pirita beach"}, headers=H
+    ).json()
+    assert r["location"] == "Pirita beach"
+    found = client.get("/api/v1/transactions?period=all_time&q=pirita", headers=H).json()
+    assert found["total"] == 1
+    assert "Pirita beach" in client.get("/api/v1/export.csv?period=all_time", headers=H).text

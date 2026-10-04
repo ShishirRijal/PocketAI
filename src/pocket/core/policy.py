@@ -18,6 +18,7 @@ class Proposal(BaseModel):
     fx_source: str | None = None
     direction: str = "expense"
     merchant: str | None = None
+    location: str | None = None
     note: str | None = None
     occurred_at: str  # ISO, UTC
     category_id: int | None = None

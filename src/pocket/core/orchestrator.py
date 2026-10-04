@@ -409,6 +409,9 @@ class Orchestrator:
         merchant = x.merchant.strip() if x.merchant else None
         if merchant:
             tags.setdefault(normalize_tag(merchant), "merchant")
+        if x.location:
+            # the location has its own field now; a matching tag is just noise
+            tags.pop(normalize_tag(x.location), None)
 
         p = Proposal(
             amount_minor=amount_minor,
@@ -418,6 +421,7 @@ class Orchestrator:
             fx_source=src,
             direction=x.direction,
             merchant=merchant,
+            location=x.location.strip()[:120] if x.location and x.location.strip() else None,
             note=x.note,
             occurred_at=occurred.isoformat(),
             category_id=cat_id,
@@ -592,17 +596,16 @@ class Orchestrator:
             if proposals[0].new_category and saved[0].category:
                 name = saved[0].category.full_name
                 line = line.replace(name, f"{name} (new)", 1)
-            body = f"✅ Logged {line}"
+            body = f"Logged {line}"
         else:
             total = sum(x.amount_base_minor for x in saved)
-            body = f"✅ Saved {len(saved)} transactions ({money.fmt(total, t.base)} total)"
+            body = f"Saved {len(saved)} transactions ({money.fmt(total, t.base)} total)"
         if d is Decision.COMMIT_SHOW:
             body += "\n🤏 Not fully sure about this one, check it looks right."
         extra = [line for line in (hook(t, saved) for hook in self.after_commit) if line]
         fx_line = render.fx_footer(proposals, t.base)
         tail = [fx_line] if fx_line else []
         tail += extra
-        tail.append(f"({render.UNDO_HINT})")
         return [out("\n".join([body, *tail]))]
 
     def _commit(self, t: Turn, proposals: list[Proposal]) -> list[Transaction]:
@@ -629,6 +632,7 @@ class Orchestrator:
                 direction=p.direction,
                 category_id=cat_id,
                 merchant=p.merchant,
+                location=p.location,
                 note=p.note,
                 occurred_at=datetime.fromisoformat(p.occurred_at),
                 created_at=t.now,
@@ -803,6 +807,8 @@ class Orchestrator:
                     )
             case "merchant":
                 p.merchant = ch.value.strip()
+            case "location":
+                p.location = ch.value.strip() or None
             case "note":
                 p.note = ch.value.strip()
             case "date":
@@ -879,6 +885,9 @@ class Orchestrator:
                 case "merchant":
                     updates["merchant"] = ch.value.strip() or None
                     described.append(f"merchant → {ch.value.strip()}")
+                case "location":
+                    updates["location"] = ch.value.strip() or None
+                    described.append(f"location → {ch.value.strip()}")
                 case "note":
                     updates["note"] = ch.value.strip() or None
                     described.append("note updated")
@@ -1060,9 +1069,13 @@ class Orchestrator:
                 for tid in la.transaction_ids:
                     txn = repo.get(t.user.id, tid)
                     if txn:
+                        if not txn.location:
+                            repo.update(
+                                txn, {"location": city}, changed_by="user", reason="location pin"
+                            )
                         tag = TagRepo(t.s).get_or_create(t.user.id, city, "place")
                         repo.set_tags(txn, [*txn.tags, tag], reason="location")
-                return [out(f"📍 Tagged #{normalize_tag(city)}")]
+                return [out(f"📍 {city}")]
         return [
             out(
                 "📍 Got a location. Send it right after logging something and I'll tag it with the city."

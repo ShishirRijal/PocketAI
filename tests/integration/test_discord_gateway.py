@@ -67,7 +67,7 @@ async def test_plain_dm_gets_logged_and_answered(settings, services):
     bot = GatewayBot(rt, "token")
     await bot.handle(msg("23 eur groceries at rimi", mid=10), 999)
     [(ucid, text, meta)] = rec.sent
-    assert ucid == "42" and "✅ Logged €23.00 · Groceries" in text and meta["channel_id"] == "555"
+    assert ucid == "42" and "Logged €23.00 · Groceries" in text and meta["channel_id"] == "555"
     await bot.handle(msg("23 eur groceries at rimi", mid=10), 999)  # same message again
     assert len(rec.sent) == 1
     await bot.handle(msg("lunch 5", author=7, mid=11), 999)  # stranger
@@ -78,8 +78,12 @@ async def test_plain_dm_gets_logged_and_answered(settings, services):
 
 @respx.mock
 async def test_adapter_replies_in_channel():
-    route = respx.post("https://discord.com/api/v10/channels/555/messages").mock(return_value=httpx.Response(200, json={}))
-    await DiscordAdapter("bot", "app").send("42", OutboundMessage(text="ok"), {"channel_id": "555", "message_id": "10"})
+    route = respx.post("https://discord.com/api/v10/channels/555/messages").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    await DiscordAdapter("bot", "app").send(
+        "42", OutboundMessage(text="ok"), {"channel_id": "555", "message_id": "10"}
+    )
     body = route.calls[0].request.content.decode()
     assert '"message_reference"' in body and '"10"' in body
 

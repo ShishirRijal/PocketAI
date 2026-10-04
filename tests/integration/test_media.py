@@ -44,7 +44,7 @@ async def test_receipt_photo(services, fake, say):
     _, _, prompt = fake.calls[-1]
     assert prompt.images[0].startswith("data:image/jpeg;base64,")
     r = await say("yes")
-    assert "✅ Logged €42.90 · Groceries" in r and "#receipt" in r
+    assert "Logged €42.90 · Groceries" in r and "#receipt" in r
 
 
 @respx.mock

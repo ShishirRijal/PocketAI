@@ -212,7 +212,7 @@ async def goal_done(o: Orchestrator, t: Turn, cmd: Command) -> list[OutboundMess
         return [OutboundMessage(text="No such goal.")]
     g.done_at = utcnow()
     return [
-        OutboundMessage(text=f"✅ Closed goal {g.name}. The savings entries stay in your history.")
+        OutboundMessage(text=f"Closed goal {g.name}. The savings entries stay in your history.")
     ]
 
 

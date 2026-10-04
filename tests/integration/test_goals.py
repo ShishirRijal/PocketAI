@@ -29,7 +29,7 @@ async def test_goal_flow(say):
 async def test_save_unknown_goal(say):
     assert "No goal called" in await say("save 50 for the car goal")
     r = await say("put 20 into groceries")
-    assert "✅ Logged €20.00 · Groceries" in r
+    assert "Logged €20.00 · Groceries" in r
 
 
 async def test_undo_save(say):

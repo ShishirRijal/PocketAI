@@ -419,7 +419,7 @@ async function loadTransactions() {
       el("td", { text: fmtDate(t.occurred_at, true) }),
       el("td", { class: `num ${t.direction === "income" ? "income" : ""}` }, `${t.direction === "income" ? "+" : ""}${amt}`, conv),
       el("td", {}, el("span", { class: "cat-pill", text: t.category || "Uncategorized" })),
-      el("td", { text: t.merchant || "" }),
+      el("td", {}, t.merchant || "", t.location ? el("span", { class: "orig", text: `📍 ${t.location}` }) : null),
       el("td", {}, t.tags.map((g) => el("span", { class: "tag", text: `#${g.name}` }))),
       el("td", { class: "note", text: t.note || "", title: t.note || "" }),
       el("td", { class: "num" }, t.confidence == null ? "" : el("span", { class: `conf ${lo ? "lo" : ""}`, text: `${Math.round(t.confidence * 100)}%` })),
@@ -453,6 +453,7 @@ async function openDrawer(id) {
     ...state.facets.categories.map((c) => el("option", { value: c.id, text: c.name, selected: c.id === t.category_id })),
   );
   form.merchant.value = t.merchant || "";
+  form.location.value = t.location || "";
   form.tags.value = t.tags.map((g) => g.name).join(", ");
   form.note.value = t.note || "";
   $("#d-title").textContent = `${money(t.amount_minor, t.currency)} · ${t.category || "Uncategorized"}`;
@@ -498,6 +499,7 @@ async function saveDrawer(evt) {
     occurred_at: form.occurred_at.value,
     category_id: form.category_id.value ? Number(form.category_id.value) : null,
     merchant: form.merchant.value,
+    location: form.location.value,
     note: form.note.value,
     tags: form.tags.value.split(",").map((x) => x.trim()).filter(Boolean),
   };

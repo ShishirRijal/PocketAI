@@ -200,6 +200,7 @@ def _conditions(
         conds.append(
             or_(
                 func.lower(Transaction.merchant).like(like),
+                func.lower(Transaction.location).like(like),
                 func.lower(Transaction.note).like(like),
                 Transaction.category_id.in_(cat_hit),
                 Transaction.id.in_(tag_hit),
@@ -219,6 +220,7 @@ def txn_json(t: Transaction, raw_text: str | None = None) -> dict[str, Any]:
         "category_id": t.category_id,
         "category": t.category.full_name if t.category else None,
         "merchant": t.merchant,
+        "location": t.location,
         "note": t.note,
         "tags": [{"name": x.name, "kind": x.kind} for x in t.tags],
         "occurred_at": t.occurred_at.isoformat(),
@@ -523,6 +525,7 @@ class TxnPatch(BaseModel):
     currency: str | None = None
     category_id: int | None = None
     merchant: str | None = None
+    location: str | None = None
     note: str | None = None
     occurred_at: str | None = None  # ISO date or datetime (local)
     direction: str | None = None
@@ -547,7 +550,7 @@ async def patch_transaction(
             if body.category_id is not None and not CategoryRepo(s).get(user.id, body.category_id):
                 raise HTTPException(400, "unknown category")
             changes["category_id"] = body.category_id
-        for fld in ("merchant", "note"):
+        for fld in ("merchant", "location", "note"):
             if fld in fields:
                 changes[fld] = (getattr(body, fld) or "").strip() or None
         if "direction" in fields:
@@ -676,6 +679,7 @@ async def export_csv(
                 "direction",
                 "category",
                 "merchant",
+                "location",
                 "tags",
                 "note",
             ]
@@ -686,7 +690,7 @@ async def export_csv(
                 t.id, t.occurred_at.astimezone(tz).strftime("%Y-%m-%d %H:%M"),
                 money.from_minor(t.amount_minor, t.currency), t.currency,
                 money.from_minor(t.amount_base_minor, user.base_currency), t.direction,
-                t.category.full_name if t.category else "", t.merchant or "",
+                t.category.full_name if t.category else "", t.merchant or "", t.location or "",
                 " ".join(x.name for x in t.tags), t.note or "",
             ])  # fmt: skip
     buf.seek(0)

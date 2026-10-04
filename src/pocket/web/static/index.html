@@ -63,7 +63,7 @@
       </div>
       <label class="field compact grow">
         <span>Search</span>
-        <input type="search" id="f-q" placeholder="merchant, note, tag, category…" autocomplete="off">
+        <input type="search" id="f-q" placeholder="merchant, place, note, tag, category…" autocomplete="off">
       </label>
       <label class="field compact"><span>Category</span><select id="f-category"><option value="">All categories</option></select></label>
       <label class="field compact"><span>Merchant</span><select id="f-merchant"><option value="">All merchants</option></select></label>
@@ -209,7 +209,8 @@
           <select name="direction"><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option></select></label>
         <label class="field"><span>Date</span><input name="occurred_at" type="datetime-local" required></label>
         <label class="field span-2"><span>Category</span><select name="category_id"></select></label>
-        <label class="field span-2"><span>Merchant</span><input name="merchant"></label>
+        <label class="field"><span>Merchant</span><input name="merchant"></label>
+        <label class="field"><span>Location</span><input name="location" placeholder="optional"></label>
         <label class="field span-2"><span>Tags <small class="muted">(comma separated)</small></span><input name="tags"></label>
         <label class="field span-2"><span>Note</span><textarea name="note" rows="2"></textarea></label>
         <div class="form-actions span-2">

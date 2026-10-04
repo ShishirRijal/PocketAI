@@ -51,6 +51,7 @@ def render_rows(rows: list[Transaction], user: User, fmt: str) -> str:
                     "direction": t.direction,
                     "category": t.category.full_name if t.category else None,
                     "merchant": t.merchant,
+                    "location": t.location,
                     "tags": [x.name for x in t.tags],
                     "note": t.note,
                 }
@@ -64,7 +65,11 @@ def render_rows(rows: list[Transaction], user: User, fmt: str) -> str:
         for t in rows:
             amt = money.from_minor(t.amount_base_minor, user.base_currency)
             sign = "" if t.direction == "income" else "-"
-            memo = [t.note, " ".join(f"#{x.name}" for x in t.tags)]
+            memo = [
+                t.location and f"@ {t.location}",
+                t.note,
+                " ".join(f"#{x.name}" for x in t.tags),
+            ]
             if t.currency != user.base_currency:
                 memo.append(f"({money.fmt(t.amount_minor, t.currency)})")
             out += [
@@ -88,6 +93,7 @@ def render_rows(rows: list[Transaction], user: User, fmt: str) -> str:
             "direction",
             "category",
             "merchant",
+            "location",
             "tags",
             "note",
         ]
@@ -96,7 +102,7 @@ def render_rows(rows: list[Transaction], user: User, fmt: str) -> str:
         w.writerow([
             t.id, t.occurred_at.astimezone(tz).strftime("%Y-%m-%d %H:%M"), money.from_minor(t.amount_minor, t.currency),
             t.currency, money.from_minor(t.amount_base_minor, user.base_currency), t.direction,
-            t.category.full_name if t.category else "", t.merchant or "", " ".join(x.name for x in t.tags), t.note or "",
+            t.category.full_name if t.category else "", t.merchant or "", t.location or "", " ".join(x.name for x in t.tags), t.note or "",
         ])  # fmt: skip
     return buf.getvalue()
 

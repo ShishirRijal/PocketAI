@@ -14,7 +14,7 @@ def txns(services, include_deleted=False):
 
 async def test_happy_path(say, services):
     r = await say("23 eur groceries at rimi today")
-    assert r.startswith("✅ Logged €23.00 · Groceries")
+    assert r.startswith("Logged €23.00 · Groceries")
     assert "#rimi" in r and "Today 21:14" in r
     [t] = txns(services)
     assert t.amount_minor == 2300 and t.currency == "EUR" and t.amount_base_minor == 2300
@@ -38,14 +38,14 @@ async def test_two_transactions_confirm_yes(say, services):
     assert "1. €6.50 · Cafes" in r and "2. €2.00 · Transport" in r
     assert not txns(services)
     r = await say("yes")
-    assert "✅ Saved 2 transactions (€8.50 total)" in r
+    assert "Saved 2 transactions (€8.50 total)" in r
     assert len(txns(services)) == 2
 
 
 async def test_two_transactions_pick_one(say, services):
     await say("coffee w/ arjun 6.50 and then metro 2")
     r = await say("2")
-    assert "✅ Logged €2.00 · Transport" in r
+    assert "Logged €2.00 · Transport" in r
     [t] = txns(services)
     assert t.amount_minor == 200
 
@@ -68,7 +68,7 @@ async def test_novel_category_create(say, services, fake):
     r = await say("40 eur passport photos and printouts")
     assert "I don't have a category that fits" in r and 'Create "Documents/Admin"' in r
     r = await say("a")
-    assert "✅ Logged €40.00 · Documents/Admin (new)" in r
+    assert "Logged €40.00 · Documents/Admin (new)" in r
     with services.db.session() as s:
         admin = s.scalars(select(Category).where(Category.name == "Admin")).one()
         assert admin.parent.name == "Documents"
@@ -180,7 +180,7 @@ async def test_low_confidence_asks(say, services):
     assert "Save it?" in r
     assert not txns(services)
     r = await say("yes")
-    assert "✅ Logged €12.00" in r
+    assert "Logged €12.00" in r
 
 
 async def test_pending_ignored_when_new_message(say, services):
@@ -254,14 +254,14 @@ async def test_new_expense_while_category_pending(say, services, fake):
     fake.queue("categorize", {"new_category_name": "Documents", "confidence": 0.8})
     await say("40 eur passport photos")
     r = await say("coffee 4")
-    assert "✅ Logged €4.00 · Cafes" in r
+    assert "Logged €4.00 · Cafes" in r
     assert [t.amount_minor for t in txns(services)] == [400]
 
 
 async def test_new_expense_while_multi_pending(say, services):
     await say("coffee 6.50 and metro 2")
     r = await say("lunch 12")
-    assert "✅ Logged €12.00 · Restaurants" in r
+    assert "Logged €12.00 · Restaurants" in r
     assert [t.amount_minor for t in txns(services)] == [1200]
 
 
@@ -272,3 +272,23 @@ async def test_umbrella_query(say):
     await say("metro 2")
     r = await say("how much did i spend on food this month?")
     assert "Groceries + Restaurants + Cafes: €38.00 spent across 3" in r
+
+
+async def test_receipt_is_short(say):
+    r = await say("23 eur groceries at rimi today")
+    assert r == "Logged €23.00 · Groceries · #rimi #groceries · Today 21:14"
+
+
+async def test_location_from_message(say, services, fake):
+    services.router.config.chains["extract"].primary = "fake/x"
+    fake.queue(
+        "extract",
+        {"transactions": [{"amount": 14, "currency": "EUR", "merchant": "TV Tower", "location": "Pirita beach",
+                           "category_hint": "Entertainment", "confidence": 0.95}]},
+    )  # fmt: skip
+    r = await say("spend 14 euros on TV tower when I went to pirita beach")
+    assert "TV Tower · 📍 Pirita beach" in r
+    assert txns(services)[0].location == "Pirita beach"
+    r = await say("edit 1 location Kadriorg")
+    assert "location → Kadriorg" in r
+    assert txns(services)[0].location == "Kadriorg"

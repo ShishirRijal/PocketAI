@@ -45,6 +45,8 @@ def txn_line(
     bits.append(t.category.full_name if t.category else "Uncategorized")
     if t.merchant and t.merchant.lower() not in {x.name for x in t.tags}:
         bits.append(t.merchant)
+    if t.location:
+        bits.append(f"📍 {t.location}")
     tg = tags_str([x.name for x in t.tags])
     if tg:
         bits.append(tg)
@@ -64,6 +66,8 @@ def proposal_line(p: Proposal, base: str, tz: str, now: datetime | None = None) 
         bits.append(f"{p.new_category} (new)")
     else:
         bits.append(p.category_name or "Uncategorized")
+    if p.location:
+        bits.append(f"📍 {p.location}")
     tg = tags_str([n for n, _ in p.tags])
     if tg:
         bits.append(tg)
@@ -83,8 +87,6 @@ def fx_footer(proposals: list[Proposal], base: str) -> str | None:
     stale = " ⚠️ offline estimate" if p.fx_source == "static" else ""
     return f"Base currency {base}; {p.currency} converted at {per_base:.2f}{src}.{stale}"
 
-
-UNDO_HINT = 'reply "undo" or "edit" within 5 min to change'
 
 HELP = """Pocket — just tell me what you spent.
 
