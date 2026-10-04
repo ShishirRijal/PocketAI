@@ -11,6 +11,7 @@ import io
 import json
 import secrets
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
@@ -107,11 +108,18 @@ def render_rows(rows: list[Transaction], user: User, fmt: str) -> str:
     return buf.getvalue()
 
 
-def export_to_file(db: Database, user_id: int, fmt: str, period: str, settings: Settings) -> Path:
+def export_to_file(
+    db: Database,
+    user_id: int,
+    fmt: str,
+    period: str,
+    settings: Settings,
+    now: datetime | None = None,
+) -> Path:
     with db.session() as s:
         user = s.get(User, user_id)
         assert user is not None
-        rng = period_range(period, user.timezone)
+        rng = period_range(period, user.timezone, now)
         rows = TransactionRepo(s).in_range(user_id, rng.start, rng.end)
         body = render_rows(rows, user, fmt)
     settings.export_dir.mkdir(parents=True, exist_ok=True)
@@ -157,7 +165,7 @@ async def export_cmd(o: Orchestrator, t: Turn, cmd: Command) -> list[OutboundMes
         return [OutboundMessage(text=f"Nothing to export for {rng.label.lower()}.")]
     # the export reads through its own session; flush ours so it sees everything
     t.s.flush()
-    path = export_to_file(o.db, t.user.id, fmt, period, o.settings)
+    path = export_to_file(o.db, t.user.id, fmt, period, o.settings, now=t.now)
     url = link_for(o.settings, path)
     return [
         OutboundMessage(
