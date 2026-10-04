@@ -52,7 +52,7 @@ sequenceDiagram
   O->>DB: INSERT transaction + tags, mark raw outcome=added
   O->>DB: write buffered llm_calls rows
   end
-  D->>TW: send "✅ Logged €23.00 · Groceries · #rimi …"
+  D->>TW: send "Logged €23.00 · Groceries · #rimi …"
   TW->>U: reply
 ```
 

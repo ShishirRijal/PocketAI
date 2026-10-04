@@ -70,7 +70,7 @@ The ECB doesn't publish NPR, but the Nepali rupee is pegged to the Indian rupee 
 A soft limit per category, per month or week (a budget on a parent covers its children). After every save, an after-commit hook checks the budgets of the categories you just spent in, and adds a line once you're past 80%:
 
 ```text
-✅ Logged €7.00 · Cafes · #coffee · Today 09:12
+Logged €7.00 · Cafes · #coffee · Today 09:12
 🟠 Cafes: €68.00 of €80.00 this month ▓▓▓▓▓▓▓▓░░ 85%
 ```
 
