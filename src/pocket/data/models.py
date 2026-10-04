@@ -115,6 +115,8 @@ class Transaction(Base):
     direction: Mapped[str] = mapped_column(String(10), default="expense")
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
     merchant: Mapped[str | None] = mapped_column(String(120))
+    # where it happened, if mentioned or shared as a pin ("Pirita beach", "Kathmandu")
+    location: Mapped[str | None] = mapped_column(String(120))
     note: Mapped[str | None] = mapped_column(Text)
     occurred_at: Mapped[datetime] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)

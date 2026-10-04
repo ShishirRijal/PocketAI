@@ -220,6 +220,7 @@ EDITABLE_FIELDS = {
     "direction",
     "category_id",
     "merchant",
+    "location",
     "note",
     "occurred_at",
 }
