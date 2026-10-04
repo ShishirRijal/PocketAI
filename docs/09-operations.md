@@ -20,6 +20,7 @@ All settings come from environment variables (or `.env`), prefixed `POCKET_`, de
 | `POCKET_TWILIO_ACCOUNT_SID` / `_AUTH_TOKEN` / `_WHATSAPP_FROM` | – | WhatsApp |
 | `POCKET_TELEGRAM_BOT_TOKEN` / `_WEBHOOK_SECRET` | – | Telegram |
 | `POCKET_DISCORD_PUBLIC_KEY` / `_BOT_TOKEN` / `_APPLICATION_ID` | – | Discord |
+| `POCKET_DISCORD_GATEWAY` / `_CHANNEL_ID` | `true` / – | bot mode for plain messages; optional channel where every message is read |
 | `POCKET_VERIFY_SIGNATURES` | `true` | only turn off in local testing |
 | `POCKET_LLM_CONFIG_PATH` | `config/llm.yaml` | `config/llm.local.yaml` for Ollama-only |
 | `POCKET_LLM_PROVIDER_ORDER` | – (YAML order: OpenAI, Gemini) | e.g. `gemini,openai` re-sorts every chain |

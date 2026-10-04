@@ -64,7 +64,7 @@ flowchart LR
 | Flow | Discord needs an answer within 3 s, so the webhook replies "thinking…" (deferred, type 5) and the worker posts the real answer as a follow-up on the interaction token |
 | Buttons | up to 5 buttons, or a select menu for longer lists |
 | Proactive | DM via the bot token |
-| Limitation | plain DMs without a slash command need a gateway websocket bot; left out to keep the service stateless |
+| Bot mode (plain messages) | `channels/discord_gateway.py` holds a gateway websocket (discord.py) inside the server process and handles **DMs to the bot, @mentions, and every message in `POCKET_DISCORD_CHANNEL_ID`** (that last one needs Message Content Intent in the portal). Replies are posted in the same channel as a reply to your message. On by default when a bot token is set; `POCKET_DISCORD_GATEWAY=false` turns it off |
 
 ## CLI and web
 
