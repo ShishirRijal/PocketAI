@@ -4,8 +4,7 @@
 
 ```
 You   : 23 eur groceries at rimi today
-Pocket: ✅ Logged €23.00 · Groceries · #rimi #groceries · Today 21:14
-        (reply "undo" or "edit" within 5 min to change)
+Pocket: Logged €23.00 · Groceries · #rimi #groceries · Today 21:14
 You   : sorry it was 29
 Pocket: ✏️ Updated last transaction: €23.00 → €29.00
 You   : coffee w/ arjun 6.50 and then metro 2
@@ -14,7 +13,7 @@ Pocket: Two transactions?
         2. €2.00 · Transport · #metro
         Reply "yes" to save both, "1" or "2" to save one, or tell me what's off.
 You   : chiya 30 rupees aja
-Pocket: ✅ Logged ₨30.00 (~€0.17) · Cafes · #chiya · Today 21:16
+Pocket: Logged ₨30.00 (~€0.17) · Cafes · #chiya · Today 21:16
         Base currency EUR; NPR converted at 174.82, ECB 2026-09-25.
 You   : kati kharcha bhayo yo hapta grocery ma?
 Pocket: This week (so far) · Groceries: €29.00 spent across 1 transaction.

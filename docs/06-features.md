@@ -16,7 +16,8 @@
 | `lent 20 to arjun` · `arjun paid me back 15` · `borrowed 50 from sita` | lending |
 | 📷 receipt photo | read with a vision model, then "Look right?" |
 | 🎙️ voice note | transcribed, then handled like text, always confirmed |
-| 📍 location pin right after logging | tags the transaction with the city |
+| `14 eur TV tower when I went to pirita beach` | merchant "TV tower", 📍 location "Pirita beach" |
+| 📍 location pin right after logging | fills the location with the city (if empty) and tags it |
 
 **Commands** (exact, instant, never use an LLM; `core/commands.py`):
 
@@ -24,7 +25,7 @@
 |---|---|
 | `undo`, `u` | reverse the last add/edit/delete (5 min) |
 | `edit`, `e`, `recent`, `list 10` | numbered recent list |
-| `edit 2 amount 29` · `edit last category groceries` · `e 1 note dinner with mom` · `edit 1 12.50` | direct edit (fields: amount, category, merchant, note, date, currency, tags, direction) |
+| `edit 2 amount 29` · `edit last category groceries` · `edit 1 location kadriorg` · `edit 1 12.50` | direct edit (fields: amount, category, merchant, location, note, date, currency, tags, direction) |
 | `delete 3` · `d 1,2` · `delete last` | direct delete |
 | `history 1` | every version of a transaction |
 | `show today` · `show week` · `today` · `month` · `/week` | quick list for a period |

@@ -45,6 +45,7 @@ erDiagram
     string direction "expense income transfer lent borrowed got_back paid_back"
     int category_id FK
     string merchant
+    string location "where, if mentioned or pinned"
     text note
     datetime occurred_at "when it happened (UTC)"
     datetime created_at "when logged"

@@ -28,7 +28,7 @@ flowchart LR
 | Stage | Pipeline method | Returns (`llm/schemas.py`) | Prompt |
 |---|---|---|---|
 | intent | `Pipeline.intent` | `IntentResult{intent: ADD/EDIT/DELETE/QUERY/HELP/CHITCHAT, confidence}` | `prompts/intent.md` |
-| extract | `Pipeline.extract` | `ExtractionResult{transactions: [ExtractedTransaction]}`: amount, currency, direction, merchant, category_hint, tags(+kind), occurred_at, note, confidence, reasoning | `prompts/extract.md` |
+| extract | `Pipeline.extract` | `ExtractionResult{transactions: [ExtractedTransaction]}`: amount, currency, direction, merchant, location, category_hint, tags(+kind), occurred_at, note, confidence, reasoning | `prompts/extract.md` |
 | categorize | `Pipeline.categorize` | `CategorizationResult{category_id \| new_category_name, confidence}` | `prompts/categorize.md` |
 | edit | `Pipeline.resolve_edit` | `EditResolution{target_index, changes: [{field, value}], confidence}` | `prompts/edit.md` |
 | delete | `Pipeline.resolve_delete` | `DeleteResolution{target_indexes, confidence}` | `prompts/delete.md` |
