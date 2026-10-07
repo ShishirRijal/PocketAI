@@ -148,7 +148,7 @@ def plain_digest(d: dict[str, Any]) -> str:
 async def build_digest(rt_or_orch: Any, user_id: int, span: str = "week") -> str:
     orch = getattr(rt_or_orch, "services", None)
     orch = orch.orchestrator if orch else rt_or_orch
-    d = weekly_data(orch.db, user_id, span=span)
+    d = weekly_data(orch.db, user_id, span=span, now=orch.clock())
     plain = plain_digest(d)
     if not d["transactions"]:
         return plain
