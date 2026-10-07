@@ -121,6 +121,10 @@ class Transaction(Base):
     occurred_at: Mapped[datetime] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     raw_message_id: Mapped[int | None] = mapped_column(ForeignKey("raw_messages.id"))
+    # set when the transaction came from a document import (statement, screenshot)
+    import_id: Mapped[int | None] = mapped_column(
+        ForeignKey("imports.id", use_alter=True), index=True
+    )
     llm_confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
 
@@ -262,3 +266,59 @@ class Goal(Base):
     due: Mapped[datetime | None] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     done_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+
+
+class Import(Base):
+    """A document (bank statement PDF, screenshot, receipt) read into staged rows.
+    Nothing touches `transactions` until the import is committed."""
+
+    __tablename__ = "imports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(String(200))
+    mime: Mapped[str] = mapped_column(String(80))
+    channel: Mapped[str] = mapped_column(String(16))  # telegram, discord, web, ...
+    raw_message_id: Mapped[int | None] = mapped_column(ForeignKey("raw_messages.id"))
+    # processing -> ready -> committed | cancelled ; failed on error
+    status: Mapped[str] = mapped_column(String(12), default="processing")
+    error: Mapped[str | None] = mapped_column(Text)
+    pages: Mapped[int | None] = mapped_column(Integer)
+    institution: Mapped[str | None] = mapped_column(String(80))  # "Revolut"
+    kind: Mapped[str | None] = mapped_column(String(24))  # statement | receipt | screenshot
+    # what the document itself says (statement totals), for the reconciliation check
+    summary: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    committed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+
+    rows: Mapped[list[ImportRow]] = relationship(
+        back_populates="imp", order_by="ImportRow.idx", cascade="all, delete-orphan"
+    )
+
+
+class ImportRow(Base):
+    __tablename__ = "import_rows"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("imports.id", ondelete="CASCADE"), index=True)
+    idx: Mapped[int] = mapped_column(Integer)  # order in the document
+    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime)  # when it was paid
+    has_time: Mapped[bool] = mapped_column(Boolean, default=False)  # document showed a time
+    description: Mapped[str] = mapped_column(String(300))
+    amount_minor: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3))
+    amount_base_minor: Mapped[int] = mapped_column(Integer)
+    fx_rate: Mapped[Decimal | None] = mapped_column(Numeric(18, 8))
+    direction: Mapped[str] = mapped_column(String(10), default="expense")
+    merchant: Mapped[str | None] = mapped_column(String(120))
+    location: Mapped[str | None] = mapped_column(String(120))
+    note: Mapped[str | None] = mapped_column(Text)
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
+    category_hint: Mapped[str | None] = mapped_column(String(80))
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
+    duplicate_of: Mapped[int | None] = mapped_column(ForeignKey("transactions.id"))
+    include: Mapped[bool] = mapped_column(Boolean, default=True)
+    transaction_id: Mapped[int | None] = mapped_column(ForeignKey("transactions.id"))
+
+    imp: Mapped[Import] = relationship(back_populates="rows")
+    category: Mapped[Category | None] = relationship(lazy="joined")
