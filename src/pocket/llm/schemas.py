@@ -154,12 +154,56 @@ class QueryPlan(BaseModel):
     confidence: float = Field(ge=0, le=1)
 
 
-class ReceiptExtraction(BaseModel):
-    """Vision stage: a photo of a receipt -> one transaction proposal."""
-
-    is_receipt: bool
-    transaction: ExtractedTransaction | None = None
-
-
 class Summary(BaseModel):
     text: str
+
+
+class DocumentRow(BaseModel):
+    """One transaction line read from a statement, screenshot or receipt."""
+
+    date: str = Field(description="YYYY-MM-DD, the day the transaction happened")
+    time: str | None = Field(
+        default=None, description="HH:MM if the document shows a time, else null"
+    )
+    description: str = Field(description="the transaction text as printed, e.g. 'Rimi Naulaste'")
+    amount: float = Field(gt=0, description="positive amount, no sign")
+    currency: str = Field(description="ISO-4217, e.g. EUR")
+    direction: Literal["expense", "income", "transfer"] = Field(
+        description="money out = expense, money in = income; moves between your own accounts/pockets = transfer"
+    )
+    merchant: str | None = Field(
+        default=None, description="clean merchant name, e.g. 'Rimi', 'Bolt'"
+    )
+    location: str | None = Field(
+        default=None, description="city or place if printed, e.g. 'Tallinn'"
+    )
+    category_hint: str | None = Field(
+        default=None, description="best fitting category from the user's list"
+    )
+    balance_after: float | None = Field(
+        default=None, description="running balance printed on that row, if any"
+    )
+    note: str | None = Field(
+        default=None, description="reference/memo text worth keeping, else null"
+    )
+    confidence: float = Field(ge=0, le=1)
+
+    @field_validator("currency")
+    @classmethod
+    def _upper(cls, v: str) -> str:
+        return v.strip().upper()[:3]
+
+
+class DocumentExtraction(BaseModel):
+    kind: Literal["statement", "receipt", "screenshot", "other"]
+    institution: str | None = Field(default=None, description="bank or shop name, e.g. 'Revolut'")
+    account_holder: str | None = Field(
+        default=None, description="the statement owner's name if printed"
+    )
+    account_currency: str | None = None
+    # only if printed on this page (statement summary box)
+    opening_balance: float | None = None
+    closing_balance: float | None = None
+    total_money_out: float | None = None
+    total_money_in: float | None = None
+    rows: list[DocumentRow] = Field(default_factory=list)

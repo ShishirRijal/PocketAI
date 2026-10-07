@@ -15,12 +15,12 @@ from pocket.llm.router import LLMRouter, PromptBundle
 from pocket.llm.schemas import (
     CategorizationResult,
     DeleteResolution,
+    DocumentExtraction,
     EditResolution,
     ExtractedTransaction,
     ExtractionResult,
     IntentResult,
     QueryPlan,
-    ReceiptExtraction,
     Summary,
 )
 
@@ -154,23 +154,37 @@ class Pipeline:
             await self.router.structured("query", b, QueryPlan, raw_message_id=u.raw_message_id)
         ).value
 
-    async def receipt(self, image_url: str, caption: str, u: UserContext) -> ReceiptExtraction:
-        stage = render(load_prompt("receipt"), text=caption, today=u.today)
-        messages: list[dict[str, Any]] = [
+    async def read_document_page(
+        self,
+        u: UserContext,
+        *,
+        page: int,
+        pages: int,
+        text: str | None = None,
+        image_url: str | None = None,
+    ) -> DocumentExtraction:
+        """One page of a statement / screenshot / receipt -> every transaction on it.
+        Text pages go to the text chain; scans and photos to the vision chain."""
+        stage = render(load_prompt("document"), page=page, pages=pages, today=u.today)
+        content: Any
+        if image_url:
+            content = [
+                {"type": "text", "text": "The page is attached as an image."},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ]
+            purpose, images = "document_image", [image_url]
+        else:
+            content = f"Page text (layout preserved):\n\n{text}"
+            purpose, images = "document", []
+        messages = [
             {"role": "system", "content": self._system(u)},
             {"role": "system", "content": stage},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": caption or "Receipt photo"},
-                    {"type": "image_url", "image_url": {"url": image_url}},
-                ],
-            },
+            {"role": "user", "content": content},
         ]
-        b = PromptBundle(messages=messages, ctx=u.ctx_dict(caption), images=[image_url])
+        b = PromptBundle(messages=messages, ctx=u.ctx_dict(text or ""), images=images)
         return (
             await self.router.structured(
-                "receipt", b, ReceiptExtraction, raw_message_id=u.raw_message_id
+                purpose, b, DocumentExtraction, raw_message_id=u.raw_message_id
             )
         ).value
 

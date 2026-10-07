@@ -25,7 +25,7 @@ router:
   summarizer:    # weekly/monthly digest wording
     primary: openai/gpt-4o-mini
     fallbacks: [gemini/gemini-flash-lite-latest]
-  vision:        # receipt photos
+  vision:        # photos, screenshots, scanned statement pages
     primary: openai/gpt-4o-mini
     fallbacks: [gemini/gemini-3.8-flash]
 
@@ -38,7 +38,8 @@ purposes:
   delete: resolver
   query: query
   summarize: summarizer
-  receipt: vision
+  document: extractor        # statement pages with a text layer
+  document_image: vision     # scanned pages, screenshots, photos
 
 # free-tier limits; we skip a model once it's within 5% of these
 quotas:

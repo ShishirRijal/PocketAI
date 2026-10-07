@@ -20,7 +20,8 @@ purposes:
   delete: local
   query: local
   summarize: local_text
-  receipt: local_text   # small local models can't read images; receipts will say so
+  document: local
+  document_image: local_text   # small local models can't read images; photos will fail
 
 quotas: {}
 
