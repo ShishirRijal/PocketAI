@@ -7,6 +7,7 @@ table always agree on the slice.
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 from collections import Counter, defaultdict
@@ -16,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
@@ -61,6 +62,7 @@ class Filters:
     currency: str | None
     deleted: bool
     low_confidence: bool
+    import_id: int | None = None
 
     @property
     def days(self) -> int:
@@ -148,12 +150,16 @@ def filters_dep(
     currency: str | None = None,
     deleted: bool = False,
     low_confidence: bool = False,
+    import_: int | None = Query(
+        None, alias="import", description="only rows from this document import"
+    ),
 ) -> tuple[User, Filters]:
     with rt(request).services.db.session() as s:
         f = _parse_filters(
             user, period, start, end, category, merchant, tag, q, direction,
             min_amount, max_amount, currency, deleted, low_confidence, s,
         )  # fmt: skip
+    f.import_id = import_
     return user, f
 
 
@@ -168,6 +174,8 @@ def _conditions(
         conds += [Transaction.occurred_at >= f.start, Transaction.occurred_at < f.end]
     if with_direction and f.direction != "all":
         conds.append(Transaction.direction == f.direction)
+    if f.import_id is not None:
+        conds.append(Transaction.import_id == f.import_id)
     if f.categories:
         conds.append(Transaction.category_id.in_(f.categories))
     if f.merchant:
@@ -228,6 +236,7 @@ def txn_json(t: Transaction, raw_text: str | None = None) -> dict[str, Any]:
         "confidence": float(t.llm_confidence) if t.llm_confidence is not None else None,
         "deleted": t.deleted_at is not None,
         "raw_message_id": t.raw_message_id,
+        "import_id": t.import_id,
         "raw_text": raw_text,
     }
 
@@ -742,7 +751,10 @@ async def system(request: Request, user: User = Depends(require_user)) -> dict[s
         "failed_30d": sum(u["calls"] - u["ok"] for u in usage),
         "daily_cap_usd": runtime.settings.llm_daily_cost_cap_usd,
         "outcomes": {str(k): v for k, v in outcomes.items()},
-        "chains": {p: router_.usable_models(p) for p in ("intent", "extract", "query", "receipt")},
+        "chains": {
+            p: router_.usable_models(p)
+            for p in ("intent", "extract", "query", "document", "document_image")
+        },
         "recent_messages": recent_json,
     }
 
@@ -951,3 +963,265 @@ async def patch_category(
         if body.archive:
             repo.archive(c)
         return {"id": c.id, "name": c.full_name, "archived": c.archived_at is not None}
+
+
+# ------------------------------------------------------------------ document imports
+
+
+def _import_json(imp: Any, base: str, rows: bool = False) -> dict[str, Any]:
+    from pocket.services.documents import stats
+
+    st = stats(imp) if imp.status != "processing" else {}
+    out: dict[str, Any] = {
+        "id": imp.id,
+        "filename": imp.filename,
+        "channel": imp.channel,
+        "status": imp.status,
+        "error": imp.error,
+        "kind": imp.kind,
+        "institution": imp.institution,
+        "pages": imp.pages,
+        "created_at": imp.created_at.isoformat(),
+        "committed_at": imp.committed_at.isoformat() if imp.committed_at else None,
+        "summary": imp.summary or {},
+        "stats": {
+            k: (v.isoformat() if isinstance(v, datetime) else v)
+            for k, v in st.items()
+            if k != "top"
+        }
+        | ({"top": [{"name": n, "total_minor": v} for n, v in st.get("top", [])]} if st else {}),
+        "currency": base,
+    }
+    if rows:
+        out["rows"] = [
+            {
+                "id": r.id,
+                "idx": r.idx,
+                "occurred_at": r.occurred_at.isoformat(),
+                "has_time": r.has_time,
+                "description": r.description,
+                "amount_minor": r.amount_minor,
+                "currency": r.currency,
+                "amount_base_minor": r.amount_base_minor,
+                "direction": r.direction,
+                "merchant": r.merchant,
+                "location": r.location,
+                "note": r.note,
+                "category_id": r.category_id,
+                "category": r.category.full_name if r.category else None,
+                "category_hint": r.category_hint,
+                "confidence": float(r.confidence) if r.confidence is not None else None,
+                "duplicate_of": r.duplicate_of,
+                "include": r.include,
+                "transaction_id": r.transaction_id,
+            }
+            for r in imp.rows
+        ]
+    return out
+
+
+def _get_import(s: Session, user: User, import_id: int) -> Any:
+    from pocket.data.models import Import
+
+    imp = s.get(Import, import_id)
+    if imp is None or imp.user_id != user.id:
+        raise HTTPException(404, "no such import")
+    return imp
+
+
+@router.get("/imports")
+async def list_imports(
+    request: Request, user: User = Depends(require_user)
+) -> list[dict[str, Any]]:
+    from pocket.data.models import Import
+
+    with rt(request).services.db.session() as s:
+        imps = s.scalars(
+            select(Import).where(Import.user_id == user.id).order_by(Import.id.desc()).limit(50)
+        ).all()
+        return [_import_json(i, user.base_currency) for i in imps]
+
+
+@router.get("/imports/{import_id}")
+async def get_import(
+    request: Request, import_id: int, user: User = Depends(require_user)
+) -> dict[str, Any]:
+    with rt(request).services.db.session() as s:
+        return _import_json(_get_import(s, user, import_id), user.base_currency, rows=True)
+
+
+async def _process_upload(
+    runtime: Any, import_id: int, user_id: int, data: bytes, mime: str, filename: str
+) -> None:
+    """Background: read the document and stage its rows."""
+    import logging
+
+    from pocket.data.models import Import
+    from pocket.services.documents import read_document, read_pages, stage_import
+
+    o = runtime.services.orchestrator
+    try:
+        pages = await asyncio.to_thread(read_pages, data, mime, filename)
+        with runtime.services.db.session() as s:
+            u = o.user_context(s, s.get(User, user_id))
+        doc = await read_document(o.pipeline, u, pages)
+        with runtime.services.db.session() as s:
+            imp = s.get(Import, import_id)
+            await stage_import(o, s, s.get(User, user_id), doc, filename=filename, mime=mime,
+                               channel="web", raw_message_id=None, imp=imp)  # fmt: skip
+    except Exception as e:
+        logging.getLogger(__name__).exception("import %s failed", import_id)
+        with runtime.services.db.session() as s:
+            imp = s.get(Import, import_id)
+            if imp is not None:
+                imp.status, imp.error = "failed", str(e)[:500]
+
+
+@router.post("/imports")
+async def upload_import(
+    request: Request, file: UploadFile = File(...), user: User = Depends(require_user)
+) -> dict[str, Any]:
+    from pocket.data.models import Import
+    from pocket.services.documents import is_pdf
+
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(413, "file too large (max 20 MB)")
+    mime = file.content_type or "application/octet-stream"
+    name = file.filename or "upload"
+    if not (mime.startswith("image/") or is_pdf(mime, name, data)):
+        raise HTTPException(415, "send a PDF or an image")
+    runtime = rt(request)
+    with runtime.services.db.session() as s:
+        imp = Import(
+            user_id=user.id, filename=name[:200], mime=mime[:80], channel="web", status="processing"
+        )
+        s.add(imp)
+        s.flush()
+        import_id = imp.id
+    task = asyncio.create_task(_process_upload(runtime, import_id, user.id, data, mime, name))
+    runtime.tasks.append(task)
+    task.add_done_callback(lambda t: t in runtime.tasks and runtime.tasks.remove(t))
+    return {"id": import_id, "status": "processing"}
+
+
+class ImportRowPatch(BaseModel):
+    include: bool | None = None
+    category_id: int | None = None
+    direction: str | None = None
+    merchant: str | None = None
+    location: str | None = None
+    note: str | None = None
+    occurred_at: str | None = None  # local "YYYY-MM-DDTHH:MM" or date
+    amount: float | None = None
+
+
+@router.patch("/imports/{import_id}/rows/{row_id}")
+async def patch_import_row(
+    request: Request,
+    import_id: int,
+    row_id: int,
+    body: ImportRowPatch,
+    user: User = Depends(require_user),
+) -> dict[str, Any]:
+    from pocket.core.dates import resolve_occurred_at
+    from pocket.data.models import ImportRow
+
+    with rt(request).services.db.session() as s:
+        imp = _get_import(s, user, import_id)
+        if imp.status != "ready":
+            raise HTTPException(409, f"import is {imp.status}")
+        row = s.get(ImportRow, row_id)
+        if row is None or row.import_id != imp.id:
+            raise HTTPException(404)
+        f = body.model_fields_set
+        if "include" in f and body.include is not None:
+            row.include = body.include
+        if "category_id" in f:
+            if body.category_id is not None and not CategoryRepo(s).get(user.id, body.category_id):
+                raise HTTPException(400, "unknown category")
+            row.category_id = body.category_id
+        if "direction" in f and body.direction in ("expense", "income", "transfer"):
+            row.direction = body.direction
+        for fld in ("merchant", "location", "note"):
+            if fld in f:
+                setattr(row, fld, (getattr(body, fld) or "").strip() or None)
+        if "occurred_at" in f and body.occurred_at:
+            row.occurred_at = resolve_occurred_at(body.occurred_at, user.timezone)
+            row.has_time = "T" in body.occurred_at
+        if body.amount is not None and body.amount > 0:
+            row.amount_minor = money.to_minor(Decimal(str(body.amount)), row.currency)
+            row.amount_base_minor = (
+                money.convert_minor(row.amount_minor, row.currency, user.base_currency, row.fx_rate)
+                if row.fx_rate
+                else row.amount_minor
+            )
+        s.flush()
+        return {"ok": True}
+
+
+class BulkInclude(BaseModel):
+    include: bool
+    only_duplicates: bool = False
+
+
+@router.post("/imports/{import_id}/include")
+async def bulk_include(
+    request: Request, import_id: int, body: BulkInclude, user: User = Depends(require_user)
+) -> dict[str, Any]:
+    with rt(request).services.db.session() as s:
+        imp = _get_import(s, user, import_id)
+        n = 0
+        for r in imp.rows:
+            if body.only_duplicates and not r.duplicate_of:
+                continue
+            r.include = body.include
+            n += 1
+        return {"updated": n}
+
+
+@router.post("/imports/{import_id}/commit")
+async def commit_import_endpoint(
+    request: Request, import_id: int, user: User = Depends(require_user)
+) -> dict[str, Any]:
+    from pocket.data.repositories import PendingRepo
+    from pocket.services.documents import commit_import
+
+    with rt(request).services.db.session() as s:
+        imp = _get_import(s, user, import_id)
+        if imp.status != "ready":
+            raise HTTPException(409, f"import is {imp.status}")
+        saved = commit_import(s, s.get(User, user.id), imp)
+        pending = PendingRepo(s).active(user.id)
+        if (
+            pending
+            and pending.kind == "confirm_import"
+            and pending.payload.get("import_id") == imp.id
+        ):
+            PendingRepo(s).clear(user.id)
+        return {"imported": len(saved)}
+
+
+@router.post("/imports/{import_id}/cancel")
+async def cancel_import(
+    request: Request, import_id: int, user: User = Depends(require_user)
+) -> dict[str, Any]:
+    with rt(request).services.db.session() as s:
+        imp = _get_import(s, user, import_id)
+        if imp.status not in ("ready", "failed"):
+            raise HTTPException(409, f"import is {imp.status}")
+        imp.status = "cancelled"
+        return {"status": "cancelled"}
+
+
+@router.post("/imports/{import_id}/revert")
+async def revert_import_endpoint(
+    request: Request, import_id: int, user: User = Depends(require_user)
+) -> dict[str, Any]:
+    from pocket.services.documents import revert_import
+
+    with rt(request).services.db.session() as s:
+        imp = _get_import(s, user, import_id)
+        if imp.status != "committed":
+            raise HTTPException(409, f"import is {imp.status}")
+        return {"reverted": revert_import(s, s.get(User, user.id), imp)}
