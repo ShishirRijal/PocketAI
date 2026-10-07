@@ -10,18 +10,29 @@ and sent to the model inline as base64, so provider URLs never leak to the LLM.
 
 from __future__ import annotations
 
-import base64
+import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
+from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import httpx
 import yaml
 
-from pocket.channels.base import MediaAttachment, OutboundMessage
+from pocket.channels.base import MediaAttachment, Option, OutboundMessage
+from pocket.data.repositories import PendingRepo, RawMessageRepo
 from pocket.llm.router import CostCapExceeded, LLMUnavailable
+from pocket.llm.schemas import ExtractedTransaction
+from pocket.services.documents import (
+    is_pdf,
+    read_document,
+    read_pages,
+    stage_import,
+    stats,
+    summary_text,
+)
 
 if TYPE_CHECKING:
     from pocket.core.orchestrator import Orchestrator, Turn
@@ -29,7 +40,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-MAX_BYTES = 10 * 1024 * 1024
+MAX_BYTES = 20 * 1024 * 1024
 Transcriber = Callable[[bytes, str, int | None], Awaitable[str]]
 
 
@@ -118,45 +129,85 @@ def make_handler(services: Services) -> Callable[..., Awaitable[list[OutboundMes
                 OutboundMessage(text="Couldn't download that file 😕 Try again, or type it out.")
             ]
 
-        if ctype.startswith("image/"):
-            return await _receipt(o, t, data, ctype, caption)
+        if ctype.startswith("image/") or is_pdf(ctype, att.filename, data):
+            return await _document(o, t, data, ctype, att.filename, caption)
         if ctype.startswith("audio/") or ctype in ("video/ogg", "application/ogg"):
             return await _voice(o, t, data, ctype, caption, services)
         t.outcome = "media_unsupported"
         return [
             OutboundMessage(
-                text="I can read receipt photos and voice notes; that file type I can't use."
+                text="I can read PDFs (statements, invoices), photos/screenshots and voice notes; that file type I can't use."
             )
         ]
 
     return handle
 
 
-async def _receipt(
-    o: Orchestrator, t: Turn, data: bytes, ctype: str, caption: str
+async def _document(
+    o: Orchestrator, t: Turn, data: bytes, ctype: str, filename: str | None, caption: str
 ) -> list[OutboundMessage]:
-    data_url = f"data:{ctype};base64,{base64.b64encode(data).decode()}"
+    """Statement PDFs, banking-app screenshots, receipts. One row -> the usual
+    confirm; several rows -> a staged import with Import all / Review / Cancel."""
+    pdf = is_pdf(ctype, filename, data)
+    name = filename or ("statement.pdf" if pdf else "image")
     try:
-        res = await o.pipeline.receipt(data_url, caption, o._uctx(t))
+        pages = await asyncio.to_thread(read_pages, data, ctype, filename)
+    except Exception as e:
+        log.warning("couldn't open %s: %s", name, e)
+        t.outcome = "media_failed"
+        return [
+            OutboundMessage(
+                text="I couldn't open that file. Is it a normal (not password-protected) PDF or image?"
+            )
+        ]
+    u = o._uctx(t)
+    try:
+        doc = await read_document(o.pipeline, u, pages)
     except (LLMUnavailable, CostCapExceeded):
         t.outcome = "media_llm_unavailable"
         return [
             OutboundMessage(
-                text="I can't read photos right now (no vision model available). Type it and I'll log it."
+                text="I can't read documents right now (no model available). Try again in a bit."
             )
         ]
-    t.stage("receipt", is_receipt=res.is_receipt)
-    if not res.is_receipt or res.transaction is None:
-        t.outcome = "not_receipt"
-        return [
-            OutboundMessage(
-                text="That doesn't look like a receipt 🤔 Send a clearer photo or just type the amount."
-            )
-        ]
-    p = await o.propose_from_extracted(t, res.transaction, caption or "receipt photo")
-    if "receipt" not in {n for n, _ in p.tags}:
-        p.tags.append(("receipt", None))
-    return await o.decide(t, [p], force_confirm=True, intro="🧾 Read from your receipt:")
+    t.stage("document", pages=len(pages), rows=len(doc.rows), kind=doc.kind, check=doc.check)
+    if not doc.rows:
+        t.outcome = "no_transactions"
+        return [OutboundMessage(text=f"I read {name} but couldn't find any transactions in it.")]
+
+    # a single receipt behaves like before: one proposal, confirm it
+    if not pdf and len(doc.rows) == 1 and doc.kind == "receipt":
+        r = doc.rows[0]
+        x = ExtractedTransaction(
+            amount=r.amount, currency=r.currency, direction=r.direction, merchant=r.merchant,
+            location=r.location, category_hint=r.category_hint, note=r.note,
+            occurred_at=f"{r.date}T{r.time}" if r.time else r.date, confidence=r.confidence,
+        )  # fmt: skip
+        p = await o.propose_from_extracted(t, x, caption or "receipt")
+        if "receipt" not in {n for n, _ in p.tags}:
+            p.tags.append(("receipt", None))
+        return await o.decide(t, [p], force_confirm=True, intro="🧾 Read from your receipt:")
+
+    raw = RawMessageRepo(t.s).get(t.raw_message_id) if t.raw_message_id else None
+    imp = await stage_import(
+        o, t.s, t.user, doc, filename=name, mime=ctype, channel=raw.channel if raw else "cli",
+        raw_message_id=t.raw_message_id,
+    )  # fmt: skip
+    link = f"{o.settings.public_url.rstrip('/')}/app?tab=imports&import={imp.id}"
+    PendingRepo(t.s).set(t.user.id, "confirm_import", {"import_id": imp.id},
+                         timedelta(minutes=o.settings.pending_ttl_minutes))  # fmt: skip
+    t.outcome = "pending"
+    n = stats(imp)["included"]
+    return [
+        OutboundMessage(
+            text=summary_text(imp, t.base, t.tz, link),
+            options=[
+                Option(value="yes", label=f"Import {n}"),
+                Option(value="review", label="Review"),
+                Option(value="no", label="Cancel"),
+            ],
+        )
+    ]
 
 
 async def _voice(

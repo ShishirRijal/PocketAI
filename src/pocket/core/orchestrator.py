@@ -655,6 +655,9 @@ class Orchestrator:
         pending = PendingRepo(t.s)
         proposals = [Proposal.model_validate(p) for p in payload.get("proposals", [])]
 
+        if kind == "confirm_import":
+            return await self._answer_import(t, payload["import_id"], text)
+
         if commands.is_no(text):
             pending.clear(t.user.id)
             t.outcome = "cancelled"
@@ -746,6 +749,55 @@ class Orchestrator:
             return None
 
         # unknown / stale kinds: drop and carry on
+        pending.clear(t.user.id)
+        return None
+
+    async def _answer_import(
+        self, t: Turn, import_id: int, text: str
+    ) -> list[OutboundMessage] | None:
+        from pocket.data.models import Import
+        from pocket.services.documents import commit_import, stats
+
+        pending = PendingRepo(t.s)
+        imp = t.s.get(Import, import_id)
+        if imp is None or imp.user_id != t.user.id:
+            pending.clear(t.user.id)
+            return None
+        link = f"{self.settings.public_url.rstrip('/')}/app?tab=imports&import={imp.id}"
+        ans = commands.norm(text)
+        if commands.is_no(text) or ans in ("cancel", "cancel import"):
+            pending.clear(t.user.id)
+            imp.status = "cancelled"
+            t.outcome = "cancelled"
+            return [out(f"👌 Cancelled, nothing imported from {imp.filename}.")]
+        if ans in ("review", "show", "details", "list", "r"):
+            t.outcome = "pending"
+            return [
+                out(
+                    f"Review, edit or untick rows here, then import:\n{link}",
+                    [("yes", "Import as is"), ("no", "Cancel")],
+                )
+            ]
+        if commands.is_yes(text) or ans in ("import", "import all", "save all", "add all"):
+            pending.clear(t.user.id)
+            if imp.status != "ready":
+                return [out(f"That import is already {imp.status}.")]
+            saved = commit_import(t.s, t.user, imp, t.now)
+            st = stats(imp)
+            t.session.last_action = LastAction(
+                kind="add", transaction_ids=[x.id for x in saved], at=t.now
+            )
+            t.session.shown_list = []
+            t.outcome = "imported"
+            see = f"{link.split('?')[0]}?tab=transactions&import={imp.id}&period=all_time&direction=all"
+            return [
+                out(
+                    f"Imported {len(saved)} transactions from {imp.filename} · "
+                    f"Out {money.fmt(st['out_minor'], t.base)} · In {money.fmt(st['in_minor'], t.base)}\n"
+                    f"See them: {see}"
+                )
+            ]
+        # anything else: leave the import waiting in the dashboard, handle the message fresh
         pending.clear(t.user.id)
         return None
 
@@ -1004,6 +1056,15 @@ class Orchestrator:
         rows = [r for r in found if r is not None]
         t.session.last_action = None
         t.outcome = "undone"
+        imports = {r.import_id for r in rows}
+        if la.kind == "add" and len(rows) > 1 and len(imports) == 1 and None not in imports:
+            from pocket.data.models import Import
+            from pocket.services.documents import revert_import
+
+            imp = t.s.get(Import, imports.pop())
+            assert imp is not None
+            n = revert_import(t.s, t.user, imp)
+            return [out(f"↩️ Undone, removed the {n} transactions imported from {imp.filename}.")]
         if la.kind == "add":
             for r in rows:
                 repo.soft_delete(r, reason="undo add")

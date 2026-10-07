@@ -49,13 +49,19 @@ def parse_update(update: dict[str, Any]) -> InboundMessage | None:
     if photos := msg.get("photo"):
         # largest size last; file_id is resolved to a URL when downloading
         media.append(
-            MediaAttachment(url=f"tg-file:{photos[-1]['file_id']}", content_type="image/jpeg")
+            MediaAttachment(
+                url=f"tg-file:{photos[-1]['file_id']}",
+                content_type="image/jpeg",
+                filename="photo.jpg",
+            )
         )
     for key, ctype in (("voice", "audio/ogg"), ("audio", None), ("document", None)):
         if f := msg.get(key):
             media.append(
                 MediaAttachment(
-                    url=f"tg-file:{f['file_id']}", content_type=f.get("mime_type") or ctype
+                    url=f"tg-file:{f['file_id']}",
+                    content_type=f.get("mime_type") or ctype,
+                    filename=f.get("file_name"),
                 )
             )
     location = None

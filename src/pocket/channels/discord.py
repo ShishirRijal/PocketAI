@@ -68,7 +68,13 @@ def parse_interaction(interaction: dict[str, Any]) -> InboundMessage | None:
             if att:
                 from pocket.channels.base import MediaAttachment
 
-                media.append(MediaAttachment(url=att["url"], content_type=att.get("content_type")))
+                media.append(
+                    MediaAttachment(
+                        url=att["url"],
+                        content_type=att.get("content_type"),
+                        filename=att.get("filename"),
+                    )
+                )
         return InboundMessage(
             channel="discord",
             channel_msg_id=interaction["id"],
@@ -131,7 +137,7 @@ COMMANDS = [
     },
     {
         "name": "receipt",
-        "description": "Log a receipt photo",
+        "description": "Log a receipt, screenshot or bank statement (PDF)",
         "options": [
             {
                 "type": 11,

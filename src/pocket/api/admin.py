@@ -179,7 +179,10 @@ async def quota(request: Request) -> dict[str, Any]:
     r = rt(request).services.router
     return {
         "quota": r.quota.snapshot(),
-        "usable": {p: r.usable_models(p) for p in ("intent", "extract", "query", "receipt")},
+        "usable": {
+            p: r.usable_models(p)
+            for p in ("intent", "extract", "query", "document", "document_image")
+        },
     }
 
 

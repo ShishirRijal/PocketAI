@@ -39,9 +39,12 @@ def to_inbound(message: Any, bot_user_id: int | None) -> InboundMessage:
         # "@Pocket 23 eur lunch" -> "23 eur lunch"
         text = re.sub(rf"<@!?{bot_user_id}>", "", text)
     media = [
-        MediaAttachment(url=a.url, content_type=a.content_type)
+        MediaAttachment(
+            url=a.url, content_type=a.content_type, filename=getattr(a, "filename", None)
+        )
         for a in getattr(message, "attachments", [])
-        if (a.content_type or "").startswith(("image/", "audio/"))
+        if (a.content_type or "").startswith(("image/", "audio/", "application/pdf"))
+        or (getattr(a, "filename", "") or "").lower().endswith(".pdf")
     ]
     return InboundMessage(
         channel="discord",

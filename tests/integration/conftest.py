@@ -13,7 +13,7 @@ from pocket.services.fx import FxService, Rate
 from pocket.wiring import build_services, ensure_owner
 from tests.support.stub_llm import StubLLM
 
-PURPOSES = ["intent", "extract", "categorize", "edit", "delete", "query", "summarize", "receipt"]
+PURPOSES = ["intent", "extract", "categorize", "edit", "delete", "query", "summarize"]
 
 
 def stub_config(primary: str = "stub/v1") -> RouterConfig:
@@ -22,6 +22,8 @@ def stub_config(primary: str = "stub/v1") -> RouterConfig:
         p: {"primary": primary, "fallbacks": ["stub/v1"] if primary != "stub/v1" else []}
         for p in PURPOSES
     }
+    # documents are always answered by FakeBackend: tests queue the page extractions
+    chains |= {p: {"primary": "fake/reader"} for p in ("document", "document_image")}
     return RouterConfig.from_dict({"router": chains})
 
 

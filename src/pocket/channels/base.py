@@ -15,6 +15,7 @@ ChannelName = Literal["whatsapp", "discord", "telegram", "cli", "web"]
 class MediaAttachment(BaseModel):
     url: str
     content_type: str | None = None
+    filename: str | None = None
     # some providers (twilio) need auth to fetch media, adapters fill this in
     auth: tuple[str, str] | None = None
 

@@ -22,26 +22,31 @@ async def test_receipt_photo(services, fake, say):
     respx.get("https://media.example/r.jpg").mock(
         return_value=httpx.Response(200, content=b"\xff\xd8jpeg")
     )
-    services.router.config.chains["receipt"].primary = "fake/vision"
     fake.queue(
-        "receipt",
+        "document_image",
         {
-            "is_receipt": True,
-            "transaction": {
-                "amount": 42.9,
-                "currency": "EUR",
-                "merchant": "Prisma",
-                "category_hint": "Groceries",
-                "tags": [{"name": "milk", "kind": "activity"}],
-                "confidence": 0.9,
-            },
+            "kind": "receipt",
+            "rows": [
+                {
+                    "date": "2026-09-28",
+                    "time": "17:05",
+                    "description": "Prisma Peremarket",
+                    "amount": 42.9,
+                    "currency": "EUR",
+                    "direction": "expense",
+                    "merchant": "Prisma",
+                    "category_hint": "Groceries",
+                    "confidence": 0.9,
+                }
+            ],
         },
     )
     r = await run_media(services, "https://media.example/r.jpg", "image/jpeg")
     assert r.startswith("🧾 Read from your receipt:")
     assert "€42.90 · Groceries" in r and "Look right?" in r
-    # the image went to the model inline, not as the provider url
-    _, _, prompt = fake.calls[-1]
+    # the image went to the model inline with its real type, not as the provider url
+    _, purpose, prompt = fake.calls[-1]
+    assert purpose == "document_image"
     assert prompt.images[0].startswith("data:image/jpeg;base64,")
     r = await say("yes")
     assert "Logged €42.90 · Groceries" in r and "#receipt" in r
@@ -52,9 +57,8 @@ async def test_not_a_receipt(services, fake):
     respx.get("https://media.example/cat.jpg").mock(
         return_value=httpx.Response(200, content=b"img")
     )
-    services.router.config.chains["receipt"].primary = "fake/vision"
-    fake.queue("receipt", {"is_receipt": False})
-    assert "doesn't look like a receipt" in await run_media(
+    fake.queue("document_image", {"kind": "other", "rows": []})
+    assert "couldn't find any transactions" in await run_media(
         services, "https://media.example/cat.jpg", "image/png"
     )
 
