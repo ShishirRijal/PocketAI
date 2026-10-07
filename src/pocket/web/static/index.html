@@ -20,6 +20,7 @@
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
       <button role="tab" data-tab="transactions" aria-selected="false">Transactions</button>
+      <button role="tab" data-tab="imports" aria-selected="false">Imports</button>
       <button role="tab" data-tab="plans" aria-selected="false">Plans</button>
       <button role="tab" data-tab="system" aria-selected="false">System</button>
     </nav>
@@ -126,7 +127,8 @@
           <table class="txn-table" id="txn-table">
             <thead>
               <tr>
-                <th data-sort="occurred_at" aria-sort="descending"><button>Date</button></th>
+                <th data-sort="occurred_at" aria-sort="descending"><button>Paid at</button></th>
+                <th data-sort="created_at" title="When it entered Pocket"><button>Logged</button></th>
                 <th data-sort="amount" class="num"><button>Amount</button></th>
                 <th data-sort="category"><button>Category</button></th>
                 <th data-sort="merchant"><button>Merchant</button></th>
@@ -143,6 +145,60 @@
           <span id="pg-info" class="muted"></span>
           <button class="btn ghost" id="pg-next">Next ›</button>
         </footer>
+      </div>
+    </section>
+
+    <section id="tab-imports" class="tab-panel" hidden>
+      <div id="imports-home">
+        <label class="dropzone card" id="dropzone">
+          <input type="file" id="import-file" accept="application/pdf,image/*" hidden>
+          <div class="dz-icon" aria-hidden="true">⇪</div>
+          <div class="dz-title">Drop a bank statement, screenshot or receipt</div>
+          <div class="muted">PDF (every page is read) or an image · or click to choose · max 20 MB</div>
+          <div class="dz-status" id="dz-status" hidden></div>
+        </label>
+        <div class="card" style="margin-top:16px">
+          <header><h2>Past imports</h2><span class="muted">also from Discord and Telegram</span></header>
+          <div id="import-list"></div>
+        </div>
+      </div>
+
+      <div id="import-review" hidden>
+        <div class="review-head">
+          <button class="btn ghost small" id="ir-back">‹ All imports</button>
+          <div class="ir-title">
+            <h2 id="ir-name">statement.pdf</h2>
+            <div class="muted" id="ir-meta"></div>
+          </div>
+          <div id="ir-check"></div>
+        </div>
+        <div class="tiles ir-tiles" id="ir-tiles"></div>
+        <div class="card" style="margin-top:16px">
+          <header class="table-head">
+            <div class="ir-bulk">
+              <button class="btn ghost small" data-bulk="all">Select all</button>
+              <button class="btn ghost small" data-bulk="none">Select none</button>
+              <button class="btn ghost small" data-bulk="dups">Skip duplicates</button>
+            </div>
+            <label class="check"><input type="checkbox" id="ir-only-issues"> Only rows that need a look</label>
+          </header>
+          <div class="table-wrap">
+            <table class="txn-table review-table" id="ir-table">
+              <thead><tr>
+                <th class="cb"></th><th>Paid at</th><th>Description</th><th>Merchant</th><th>Location</th>
+                <th>Category</th><th>Type</th><th class="num">Amount</th><th></th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="commit-bar" id="ir-bar">
+          <div id="ir-bar-text" class="muted"></div>
+          <div class="commit-actions">
+            <button class="btn ghost" id="ir-cancel">Cancel import</button>
+            <button class="btn primary" id="ir-commit">Import</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -207,7 +263,7 @@
         <label class="field"><span>Currency</span><input name="currency" maxlength="3" required></label>
         <label class="field"><span>Direction</span>
           <select name="direction"><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option></select></label>
-        <label class="field"><span>Date</span><input name="occurred_at" type="datetime-local" required></label>
+        <label class="field"><span>Paid at</span><input name="occurred_at" type="datetime-local" required></label>
         <label class="field span-2"><span>Category</span><select name="category_id"></select></label>
         <label class="field"><span>Merchant</span><input name="merchant"></label>
         <label class="field"><span>Location</span><input name="location" placeholder="optional"></label>

@@ -8,7 +8,7 @@ const SVGNS = "http://www.w3.org/2000/svg";
 const EXP = { JPY: 0, KRW: 0, ISK: 0, BHD: 3, KWD: 3, OMR: 3, TND: 3 };
 const DEFAULTS = {
   period: "this_month", start: "", end: "", direction: "expense", q: "", category: "",
-  merchant: "", tag: "", min: "", max: "", currency: "", low: "", deleted: "",
+  merchant: "", tag: "", min: "", max: "", currency: "", low: "", deleted: "", import: "",
 };
 
 const state = {
@@ -97,6 +97,7 @@ function params(extra = {}) {
   if (f.min) p.set("min_amount", f.min);
   if (f.max) p.set("max_amount", f.max);
   if (f.low) p.set("low_confidence", "true");
+  if (f.import && state.tab !== "imports") p.set("import", f.import);
   if (f.deleted) p.set("deleted", "true");
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
   return p;
@@ -408,7 +409,7 @@ async function loadTransactions() {
   });
   const body = $("#txn-table tbody");
   if (!data.items.length) {
-    body.replaceChildren(el("tr", {}, el("td", { colspan: 7, class: "empty", text: "No transactions match these filters" })));
+    body.replaceChildren(el("tr", {}, el("td", { colspan: 8, class: "empty", text: "No transactions match these filters" })));
     return;
   }
   body.replaceChildren(...data.items.map((t) => {
@@ -417,6 +418,7 @@ async function loadTransactions() {
     const lo = t.confidence != null && t.confidence < 0.85;
     return el("tr", { class: t.deleted ? "deleted" : "", tabindex: 0, onclick: () => openDrawer(t.id), onkeydown: (e) => e.key === "Enter" && openDrawer(t.id) },
       el("td", { text: fmtDate(t.occurred_at, true) }),
+      el("td", { class: "logged", text: fmtDate(t.created_at, true), title: "when it entered Pocket" }),
       el("td", { class: `num ${t.direction === "income" ? "income" : ""}` }, `${t.direction === "income" ? "+" : ""}${amt}`, conv),
       el("td", {}, el("span", { class: "cat-pill", text: t.category || "Uncategorized" })),
       el("td", {}, t.merchant || "", t.location ? el("span", { class: "orig", text: `📍 ${t.location}` }) : null),
@@ -468,8 +470,12 @@ async function openDrawer(id) {
       t.channel && `via ${t.channel}`,
       t.confidence != null && `parser confidence ${Math.round(t.confidence * 100)}%`,
       t.fx_rate && `fx ${Number(t.fx_rate).toPrecision(6)} → ${base()} (${m(t.amount_base_minor)})`,
-      `logged ${fmtDate(t.created_at, true)}`,
     ].filter(Boolean).join(" · ") }),
+    el("h3", { text: "Times" }),
+    el("p", {}, el("b", { text: "Paid at " }), fmtDate(t.occurred_at, true), el("br"),
+      el("b", { text: "Logged at " }), fmtDate(t.created_at, true),
+      t.import_id ? el("span", {}, el("br"), el("b", { text: "From " }),
+        el("a", { href: "#", text: `import #${t.import_id}`, onclick: (e) => { e.preventDefault(); closeDrawer(); state.f.import = String(t.import_id); syncControls(); switchTab("imports"); } })) : null),
     t.versions.length ? el("h3", { text: "History" }) : null,
     t.versions.length ? el("ul", {}, t.versions.map((v) => el("li", {},
       `${fmtDate(v.at, true)} · ${v.by}${v.reason ? ` (${v.reason})` : ""}: `,
@@ -511,6 +517,249 @@ async function saveDrawer(evt) {
   } catch (e) {
     toast(`Couldn't save: ${e.message}`);
   }
+}
+
+// ------------------------------------------------------------------ imports
+
+const STATUS_LABEL = { processing: "Reading…", ready: "Ready to review", committed: "Imported", cancelled: "Cancelled", failed: "Failed", reverted: "Reverted" };
+let importPoll = null;
+
+function checkBadge(sum) {
+  const c = (sum || {}).check || {};
+  if (c.matches_statement === true) {
+    return el("span", { class: "badge ok", title: "Money out/in read from the rows equals the totals printed on the statement" },
+      `✓ Matches the statement · out ${m(Math.round(c.statement_out * 100))} · in ${m(Math.round(c.statement_in * 100))}`);
+  }
+  if (c.matches_statement === false) {
+    return el("span", { class: "badge warn" }, `⚠ Doesn't match the statement totals (it says out ${c.statement_out}, in ${c.statement_in}) — check the rows`);
+  }
+  return null;
+}
+
+async function uploadFile(file) {
+  const status = $("#dz-status");
+  status.hidden = false;
+  status.replaceChildren(el("span", { class: "spin" }), `Uploading ${file.name}…`);
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch("/api/v1/imports", { method: "POST", body, credentials: "same-origin" });
+  if (!res.ok) {
+    status.textContent = `Couldn't upload: ${(await res.json().catch(() => ({}))).detail || res.status}`;
+    return;
+  }
+  const { id } = await res.json();
+  status.hidden = true;
+  setFilters({ import: String(id) });
+}
+
+async function loadImports() {
+  clearTimeout(importPoll);
+  if (state.f.import) return loadImportReview(state.f.import);
+  $("#imports-home").hidden = false;
+  $("#import-review").hidden = true;
+  const list = await api("/imports");
+  const host = $("#import-list");
+  if (!list.length) {
+    host.replaceChildren(el("div", { class: "empty", text: "No imports yet. Drop a statement above, or send one to the bot." }));
+    return;
+  }
+  host.replaceChildren(...list.map((imp) => {
+    const st = imp.stats || {};
+    const span = st.first ? `${fmtDate(st.first)}${st.last && st.last.slice(0, 10) !== st.first.slice(0, 10) ? ` – ${fmtDate(st.last)}` : ""}` : "";
+    return el("div", { class: "import-item" },
+      el("div", {},
+        el("div", { class: "name", text: imp.filename }),
+        el("div", { class: "sub", text: [imp.institution, imp.kind, imp.pages && `${imp.pages} page${imp.pages === 1 ? "" : "s"}`, `via ${imp.channel}`, fmtDate(imp.created_at, true)].filter(Boolean).join(" · ") }),
+        checkBadge(imp.summary) ? el("div", { style: "margin-top:6px" }, checkBadge(imp.summary)) : null),
+      el("div", { class: "nums" },
+        st.rows != null ? el("div", { text: `${st.rows} rows${span ? ` · ${span}` : ""}` }) : null,
+        st.rows != null ? el("div", { text: `out ${m(st.out_minor)} · in ${m(st.in_minor)}` }) : null),
+      el("div", { style: "display:flex;gap:8px;align-items:center" },
+        el("span", { class: `status ${imp.status}`, text: STATUS_LABEL[imp.status] || imp.status }),
+        el("button", { class: "btn small", type: "button", text: imp.status === "ready" ? "Review" : "Open", onclick: () => setFilters({ import: String(imp.id) }) })),
+    );
+  }));
+}
+
+function rowLocal(iso) {
+  return toLocalInput(iso);
+}
+
+function computeTotals(imp) {
+  const inc = imp.rows.filter((r) => r.include);
+  return {
+    selected: inc.length,
+    out: inc.filter((r) => r.direction === "expense").reduce((a, r) => a + r.amount_base_minor, 0),
+    in: inc.filter((r) => r.direction === "income").reduce((a, r) => a + r.amount_base_minor, 0),
+    transfers: inc.filter((r) => r.direction === "transfer").length,
+    dups: imp.rows.filter((r) => r.duplicate_of).length,
+  };
+}
+
+function renderReviewTotals(imp) {
+  const t = computeTotals(imp);
+  $("#ir-tiles").replaceChildren(
+    tile("Transactions found", String(imp.rows.length), el("span", { text: `${imp.pages || 1} page${imp.pages === 1 ? "" : "s"} read` })),
+    tile("Selected", String(t.selected), el("span", { text: `${imp.rows.length - t.selected} left out` })),
+    tile("Money out", m(t.out), el("span", { text: "expenses selected" })),
+    tile("Money in", m(t.in), el("span", { text: "income selected" })),
+    tile("Already logged", String(t.dups), el("span", { text: t.transfers ? `${t.transfers} transfers (not spending)` : "duplicates found" })),
+  );
+  const ready = imp.status === "ready";
+  $("#ir-bar-text").textContent = ready
+    ? `${t.selected} of ${imp.rows.length} selected · out ${m(t.out)} · in ${m(t.in)}`
+    : `${STATUS_LABEL[imp.status] || imp.status}${imp.committed_at ? ` ${fmtDate(imp.committed_at, true)}` : ""}`;
+  const commit = $("#ir-commit");
+  commit.hidden = !ready && imp.status !== "committed";
+  commit.textContent = ready ? `Import ${t.selected}` : "View transactions";
+  commit.disabled = ready && t.selected === 0;
+  const cancel = $("#ir-cancel");
+  cancel.hidden = !(ready || imp.status === "committed");
+  cancel.textContent = imp.status === "committed" ? "Revert import" : "Cancel import";
+}
+
+async function patchRow(imp, r, patch, tr, local = {}) {
+  try {
+    await api(`/imports/${imp.id}/rows/${r.id}`, { method: "PATCH", body: patch });
+    Object.assign(r, patch, local);
+    if (patch.occurred_at) r.occurred_at = new Date(patch.occurred_at.length === 10 ? `${patch.occurred_at}T12:00` : patch.occurred_at).toISOString();
+    tr.classList.add("saved");
+    setTimeout(() => tr.classList.remove("saved"), 700);
+    tr.classList.toggle("off", !r.include);
+    renderReviewTotals(imp);
+  } catch (e) {
+    toast(`Couldn't save: ${e.message}`);
+  }
+}
+
+function reviewRow(imp, r) {
+  const ro = imp.status !== "ready";
+  const tr = el("tr", { class: r.include ? "" : "off" });
+  const cb = el("input", { type: "checkbox", checked: r.include, disabled: ro, "aria-label": "include" });
+  cb.addEventListener("change", () => patchRow(imp, r, { include: cb.checked }, tr));
+  // statements often carry only a date; don't show a made-up 12:00
+  const when = r.has_time
+    ? el("input", { class: "cell when", type: "datetime-local", value: rowLocal(r.occurred_at), disabled: ro })
+    : el("input", { class: "cell when", type: "date", value: rowLocal(r.occurred_at).slice(0, 10), disabled: ro, title: "the statement has no time for this one" });
+  when.addEventListener("change", () => patchRow(imp, r, { occurred_at: when.value }, tr));
+  const field = (key, placeholder) => {
+    const inp = el("input", { class: "cell", value: r[key] || "", placeholder, disabled: ro });
+    inp.addEventListener("change", () => patchRow(imp, r, { [key]: inp.value }, tr));
+    return inp;
+  };
+  const cat = el("select", { class: "cell", disabled: ro },
+    el("option", { value: "", text: r.direction === "transfer" ? "— (transfer)" : "— Miscellaneous" }),
+    ...state.facets.categories.map((c) => el("option", { value: c.id, text: c.name, selected: c.id === r.category_id })));
+  cat.addEventListener("change", () => patchRow(imp, r, { category_id: cat.value ? Number(cat.value) : null }, tr));
+  const dir = el("select", { class: "cell", disabled: ro },
+    ...["expense", "income", "transfer"].map((d) => el("option", { value: d, text: d, selected: d === r.direction })));
+  dir.addEventListener("change", () => patchRow(imp, r, { direction: dir.value }, tr));
+  const e = EXP[r.currency] ?? 2;
+  const amt = el("input", { class: "cell num", type: "number", step: "0.01", min: "0", value: (r.amount_minor / 10 ** e).toFixed(e), disabled: ro, style: "text-align:right;min-width:90px" });
+  amt.addEventListener("change", () => {
+    const v = Number(amt.value);
+    if (!(v > 0)) return;
+    const minor = Math.round(v * 10 ** e);
+    patchRow(imp, r, { amount: v }, tr, { amount_minor: minor, amount_base_minor: Math.round((r.amount_base_minor * minor) / r.amount_minor) });
+  });
+  const flags = [];
+  if (r.duplicate_of) flags.push(el("button", { class: "flag dup", type: "button", title: "Looks like something you already logged — click to see it", text: "already logged", onclick: () => openDrawer(r.duplicate_of) }));
+  if (!r.category_id && r.category_hint && r.direction !== "transfer") flags.push(el("span", { class: "flag hint", text: `suggested: ${r.category_hint}` }));
+  if (r.confidence != null && r.confidence < 0.7) flags.push(el("span", { class: "flag lo", text: "unsure" }));
+  if (r.transaction_id) flags.push(el("button", { class: "flag hint", type: "button", text: "open", onclick: () => openDrawer(r.transaction_id) }));
+  tr.append(
+    el("td", { class: "cb" }, cb),
+    el("td", {}, when),
+    el("td", { class: "desc" }, el("div", { text: r.description }), r.note ? el("div", { class: "note", text: r.note }) : null),
+    el("td", {}, field("merchant", "merchant")),
+    el("td", {}, field("location", "—")),
+    el("td", {}, cat),
+    el("td", {}, dir),
+    el("td", { class: `num ${r.direction === "income" ? "amt-in" : ""}` }, el("div", { style: "display:flex;align-items:center;gap:4px;justify-content:flex-end" }, amt, el("span", { class: "muted", text: r.currency })),
+      r.currency !== base() ? el("div", { class: "orig", text: `≈ ${m(r.amount_base_minor)}` }) : null),
+    el("td", {}, ...flags),
+  );
+  tr.dataset.issue = String(Boolean(r.duplicate_of || (r.confidence != null && r.confidence < 0.7) || (!r.category_id && r.direction === "expense")));
+  return tr;
+}
+
+async function loadImportReview(id) {
+  $("#imports-home").hidden = true;
+  $("#import-review").hidden = false;
+  const imp = await api(`/imports/${id}`);
+  state.imp = imp;
+  $("#ir-name").textContent = imp.filename;
+  $("#ir-meta").textContent = [imp.institution, imp.kind, imp.pages && `${imp.pages} page${imp.pages === 1 ? "" : "s"}`, `via ${imp.channel}`, fmtDate(imp.created_at, true)].filter(Boolean).join(" · ");
+  $("#ir-check").replaceChildren(...[checkBadge(imp.summary), el("span", { class: `status ${imp.status}`, text: STATUS_LABEL[imp.status] || imp.status })].filter(Boolean));
+  const body = $("#ir-table tbody");
+  if (imp.status === "processing") {
+    $("#ir-tiles").replaceChildren();
+    body.replaceChildren(el("tr", {}, el("td", { colspan: 9, class: "empty" }, el("span", { class: "spin" }), " Reading every page… this takes a few seconds per page.")));
+    $("#ir-bar").hidden = true;
+    importPoll = setTimeout(() => state.tab === "imports" && state.f.import === String(id) && loadImportReview(id), 1500);
+    return;
+  }
+  if (imp.status === "failed") {
+    $("#ir-tiles").replaceChildren();
+    body.replaceChildren(el("tr", {}, el("td", { colspan: 9, class: "empty", text: `Couldn't read it: ${imp.error || "unknown error"}` })));
+    $("#ir-bar").hidden = true;
+    return;
+  }
+  $("#ir-bar").hidden = false;
+  body.replaceChildren(...imp.rows.map((r) => reviewRow(imp, r)));
+  applyIssueFilter();
+  renderReviewTotals(imp);
+}
+
+function applyIssueFilter() {
+  const only = $("#ir-only-issues").checked;
+  $$("#ir-table tbody tr").forEach((tr) => { tr.hidden = only && tr.dataset.issue !== "true"; });
+}
+
+function showImported(id) {
+  Object.assign(state.f, { ...DEFAULTS, import: String(id), period: "all_time", direction: "all" });
+  state.page = 1;
+  syncControls();
+  switchTab("transactions");
+}
+
+function bindImports() {
+  const dz = $("#dropzone");
+  const input = $("#import-file");
+  input.addEventListener("change", () => input.files[0] && uploadFile(input.files[0]));
+  ["dragenter", "dragover"].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("over"); }));
+  dz.addEventListener("drop", (e) => e.dataTransfer.files[0] && uploadFile(e.dataTransfer.files[0]));
+  $("#ir-back").addEventListener("click", () => setFilters({ import: "" }));
+  $("#ir-only-issues").addEventListener("change", applyIssueFilter);
+  $$("[data-bulk]").forEach((b) => b.addEventListener("click", async () => {
+    const imp = state.imp;
+    if (!imp || imp.status !== "ready") return;
+    const kind = b.dataset.bulk;
+    await api(`/imports/${imp.id}/include`, { method: "POST", body: kind === "dups" ? { include: false, only_duplicates: true } : { include: kind === "all" } });
+    loadImportReview(imp.id);
+  }));
+  $("#ir-commit").addEventListener("click", async () => {
+    const imp = state.imp;
+    if (imp.status === "committed") return showImported(imp.id);
+    const r = await api(`/imports/${imp.id}/commit`, { method: "POST" });
+    toast(`Imported ${r.imported} transactions`);
+    state.facets = await api("/facets");
+    loadImportReview(imp.id);
+  });
+  $("#ir-cancel").addEventListener("click", async () => {
+    const imp = state.imp;
+    if (imp.status === "committed") {
+      if (!confirm(`Remove all ${imp.rows.filter((x) => x.transaction_id).length} transactions this import added?`)) return;
+      const r = await api(`/imports/${imp.id}/revert`, { method: "POST" });
+      toast(`Removed ${r.reverted} transactions`);
+    } else {
+      if (!confirm("Discard this import? Nothing has been added yet.")) return;
+      await api(`/imports/${imp.id}/cancel`, { method: "POST" });
+      toast("Import cancelled");
+    }
+    loadImportReview(imp.id);
+  });
 }
 
 // ------------------------------------------------------------------ plans
@@ -699,6 +948,7 @@ function renderChips() {
   if (f.currency) add(f.currency, { currency: "" });
   if (f.low) add("Low confidence", { low: "" });
   if (f.deleted) add("Deleted", { deleted: "" });
+  if (f.import) add(`From import #${f.import}`, { import: "" });
   $("#active-chips").replaceChildren(...chips);
 }
 
@@ -782,7 +1032,7 @@ function switchTab(tab) {
   state.tab = tab;
   $$(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
   $$(".tab-panel").forEach((p) => (p.hidden = p.id !== `tab-${tab}`));
-  $(".filters").hidden = tab === "system" || tab === "plans";
+  $(".filters").hidden = tab === "system" || tab === "plans" || tab === "imports";
   writeUrl();
   refresh();
 }
@@ -799,6 +1049,8 @@ async function refresh() {
       renderOverview();
     } else if (state.tab === "transactions") {
       await loadTransactions();
+    } else if (state.tab === "imports") {
+      await loadImports();
     } else if (state.tab === "plans") {
       await Promise.all([loadPlans(), loadCategoryAdmin()]);
     } else {
@@ -883,6 +1135,7 @@ async function main() {
   readUrl();
   bindChrome();
   bindFilters();
+  bindImports();
   [state.me, state.facets] = await Promise.all([api("/me"), api("/facets")]);
   fillFacets();
   syncControls();
