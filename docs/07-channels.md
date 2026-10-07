@@ -60,7 +60,7 @@ flowchart LR
 |---|---|
 | Endpoint | `POST /webhook/discord` (the app's Interactions Endpoint URL) |
 | Verification | Ed25519 over `timestamp + body` with the app's public key (`cryptography` library) |
-| Setup | `pocket discord-commands` registers `/pocket text:<message>` and `/receipt <image>` |
+| Setup | `pocket discord-commands` registers `/pocket text:<message>` and `/receipt <file>` (image or PDF) |
 | Flow | Discord needs an answer within 3 s, so the webhook replies "thinking…" (deferred, type 5) and the worker posts the real answer as a follow-up on the interaction token |
 | Buttons | up to 5 buttons, or a select menu for longer lists |
 | Proactive | DM via the bot token |

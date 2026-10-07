@@ -23,6 +23,9 @@ erDiagram
   transactions ||--o{ transaction_versions : "history"
   raw_messages ||--o{ transactions : "parsed into"
   raw_messages ||--o{ llm_calls : "cost of"
+  users ||--o{ imports : uploads
+  imports ||--o{ import_rows : "staged rows"
+  imports ||--o{ transactions : "created"
 
   users {
     int id PK
@@ -47,8 +50,9 @@ erDiagram
     string merchant
     string location "where, if mentioned or pinned"
     text note
-    datetime occurred_at "when it happened (UTC)"
-    datetime created_at "when logged"
+    datetime occurred_at "paid at: when it happened (UTC)"
+    datetime created_at "logged at: when it entered Pocket"
+    int import_id FK "the statement it came from, if any"
     int raw_message_id FK "the message it came from"
     decimal llm_confidence
     datetime deleted_at "soft delete"
@@ -113,6 +117,27 @@ erDiagram
     datetime next_run
     bool active
   }
+  imports {
+    int id PK
+    string filename
+    string channel "web, telegram, discord, ..."
+    string status "processing ready committed cancelled failed reverted"
+    string institution "Revolut"
+    int pages
+    json summary "statement totals + reconciliation check"
+  }
+  import_rows {
+    int import_id FK
+    datetime occurred_at "from the statement"
+    bool has_time "false when the statement only has a date"
+    string description "the line as printed"
+    int amount_minor
+    string direction
+    int category_id FK
+    int duplicate_of "a transaction you already logged"
+    bool include "ticked in review"
+    int transaction_id "set on import"
+  }
   goals {
     string slug "japan"
     int target_minor
@@ -140,6 +165,10 @@ All timestamps are timezone-aware UTC (`UTCDateTime` in `data/db.py` refuses nai
 - **Deletes** set `deleted_at`. Every query filters `deleted_at IS NULL`. `undo` and the dashboard's Restore clear it. Optional hard purge after N days: `POCKET_PURGE_DELETED_AFTER_DAYS` (off by default).
 - **The raw message is truth.** `raw_messages.text` is exactly what you sent, and each transaction points back at it. If parsing was wrong you can re-run it (`/admin/replay/<id>`).
 
+### Two times per transaction
+
+`occurred_at` is when you paid; `created_at` is when it entered Pocket. They're the same for a quick "coffee 4", hours apart for "the coffee yesterday", and weeks apart for a statement imported at the end of the month. The dashboard shows both columns ("Paid at" and "Logged"); every total, chart and period filter uses the paid-at time.
+
 ### Directions (`core/directions.py`)
 
 | direction | meaning | counted as |
@@ -164,6 +193,8 @@ All timestamps are timezone-aware UTC (`UTCDateTime` in `data/db.py` refuses nai
 20260904_5747c1490cb6_raw_message_channel_meta reply routing + processing bookkeeping
 20260905_c26b92c29e19_budgets_and_recurring_rules
 20260927_5c8e9d661db7_savings_goals
+20261004_fbf0bfbdd63d_transaction_location
+20261007_d8dbf6c53839_document_imports        imports, import_rows, transactions.import_id
 ```
 
 They run automatically at startup (`runtime.py → data/migrate.py`) and in the container entrypoint. To add one: change `models.py`, then `uv run alembic revision --autogenerate -m "what changed"` and review the generated file.

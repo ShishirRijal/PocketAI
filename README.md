@@ -42,12 +42,12 @@ Pocket: This week (so far) · Groceries: €29.00 spent across 1 transaction.
 | | |
 |---|---|
 | Channels | WhatsApp (Twilio), Telegram (webhook + inline keyboards), Discord (interactions + buttons), CLI/HTTP |
-| Input | free text in English/Nepali, receipt photos (vision), voice notes (transcription), location pins → city tag |
+| Input | free text in English/Nepali, bank statement PDFs (every page, totals checked against the statement), screenshots and receipt photos (vision), voice notes (transcription), location pins → city tag |
 | Money | integer minor units, multi-currency with base-currency conversion (ECB via frankfurter, NPR via the INR peg, fallbacks) |
 | Fixing things | `undo`, `edit`, `edit 2 amount 29`, "make that groceries", `delete 3`, "delete the coffee one", `history 1` |
 | Questions | "how much grocery this month?", "top merchants last month", "average weekday coffee spend", "breakdown by category", "how much with arjun this year" |
 | Extras | budgets with 80% nudges, recurring transactions ("every 15th 12.99 spotify"), lending tracker ("lent 20 to arjun", `owes`), group splits ("split 60 dinner with arjun and sita"), savings goals ("goal japan 2000 by march", "save 200 japan"), person profiles, "unusually large" nudges, weekly digest, exports (CSV/JSON/QIF), category management |
-| Dashboard | overview charts, filters (period, direction, category, merchant, tag, search, amount range, currency), transactions table with edit drawer + full history, plans (budget meters, recurring, lending), LLM cost & health, a quick-log box that runs the same pipeline, installable as a PWA |
+| Dashboard | overview charts, filters (period, direction, category, merchant, tag, search, amount range, currency), transactions table with paid-at and logged-at times and an edit drawer + full history, statement imports with a review table, plans (budget meters, recurring, lending), LLM cost & health, a quick-log box that runs the same pipeline, installable as a PWA |
 | Ops | health/readiness checks, per-user rate limits, cost cap, nightly backups (+ Azure Blob), Redis Streams workers, Docker Compose + Caddy, CI |
 
 ## How well does it parse?
@@ -140,7 +140,7 @@ It starts (or reuses) an ngrok tunnel to :8080, writes the URL into `.env` as `P
 
 **Telegram.** Create a bot with @BotFather and set `POCKET_TELEGRAM_BOT_TOKEN` and a random `POCKET_TELEGRAM_WEBHOOK_SECRET`, then run `pocket telegram-webhook`. Send the bot a message, find your chat id in `/admin`, and `pocket link telegram:<chat id>`.
 
-**Discord.** Create an application and set its *Interactions Endpoint URL* to `https://<host>/webhook/discord`. Fill `POCKET_DISCORD_*`, then run `pocket discord-commands`. Use `/pocket text:23 eur lunch` and `/receipt`.
+**Discord.** Create an application and set its *Interactions Endpoint URL* to `https://<host>/webhook/discord`. Fill `POCKET_DISCORD_*`, then run `pocket discord-commands`. Use `/pocket text:23 eur lunch` and `/receipt` (an image or a PDF statement).
 
 Anyone not on the allowlist gets silence. There is no login flow; the channel identity is the auth.
 

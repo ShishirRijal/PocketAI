@@ -15,6 +15,7 @@
 | `how much on food this month?` · `top merchants last month` · `average weekday coffee spend` · `biggest expenses this year` · `how much with arjun this year` | queries |
 | `lent 20 to arjun` · `arjun paid me back 15` · `borrowed 50 from sita` | lending |
 | 📷 receipt photo | read with a vision model, then "Look right?" |
+| 📄 bank statement PDF / app screenshot | every page read; "Import 27 / Review / Cancel" (see below) |
 | 🎙️ voice note | transcribed, then handled like text, always confirmed |
 | `14 eur TV tower when I went to pirita beach` | merchant "TV tower", 📍 location "Pirita beach" |
 | 📍 location pin right after logging | fills the location with the city (if empty) and tags it |
@@ -161,12 +162,13 @@ The numbers are computed in code. The model only makes them read nicely, and if 
 
 ```mermaid
 flowchart TD
-  M["media attachment"]:::user --> DL["download server-side<br/>(Twilio basic auth,<br/>Telegram file id → URL)<br/>max 10 MB"]:::edge
+  M["media attachment"]:::user --> DL["download server-side<br/>(Twilio basic auth,<br/>Telegram file id → URL)<br/>max 20 MB"]:::edge
   DL --> K{"type?"}:::core
-  K -- "image/*" --> V["vision stage<br/>image sent inline as base64"]:::ai
-  V --> RC{"is it a receipt?"}:::core
-  RC -- no --> NO["'doesn't look like a receipt'"]:::user
-  RC -- yes --> P["propose + #receipt"]:::core --> ASK["'🧾 Read from your receipt… Look right?'"]:::ask
+  K -- "image/* or PDF" --> V["document reader<br/>(see Statements above)"]:::ai
+  V --> RC{"how many rows?"}:::core
+  RC -- none --> NO["'couldn't find any transactions'"]:::user
+  RC -- "one receipt" --> P["propose + #receipt"]:::core --> ASK["'🧾 Read from your receipt… Look right?'"]:::ask
+  RC -- several --> IMP["staged import<br/>Import / Review / Cancel"]:::ask
   K -- "audio/*" --> TR["transcribe<br/>gpt-4o-mini-transcribe → whisper-1"]:::ai
   TR --> X{"contains an expense?"}:::core
   X -- yes --> ASK2["'🎙️ Transcribed: …' + confirm"]:::ask
@@ -180,6 +182,55 @@ flowchart TD
 ```
 
 Provider URLs never reach the model: images are downloaded and sent inline, and logged payloads show `<redacted>` instead of the image.
+
+## Statements, screenshots and receipts (`services/documents.py`)
+
+Send a PDF or an image to the bot (Telegram, a Discord DM, the watched Discord channel, WhatsApp), or drop it on the dashboard's **Imports** tab.
+
+```mermaid
+flowchart TD
+  F["PDF or image"]:::user --> RP["read_pages()<br/>text layer, layout kept<br/>(pdfplumber)"]:::core
+  RP -- "page has no text<br/>(a scan)" --> IMG["render to PNG<br/>(pypdfium2)"]:::core
+  RP --> RED["redact()<br/>IBANs, card and account<br/>numbers, e-mails"]:::core
+  RED --> DOC["document stage<br/>3 pages in parallel"]:::ai
+  IMG --> VIS["document_image stage<br/>(vision)"]:::ai
+  DOC & VIS --> REC["reconcile()<br/>running balance fixes in/out,<br/>own-name rows → transfer,<br/>sums vs the statement's totals"]:::core
+  REC --> ONE{"one receipt?"}:::core
+  ONE -- yes --> ASK["'🧾 Read from your receipt… Look right?'"]:::ask
+  ONE -- no --> ST["stage_import()<br/>categories, FX,<br/>duplicates switched off"]:::store
+  ST --> MSG["'📄 sep.pdf · 31 transactions · ✓ totals match'<br/>Import 30 · Review · Cancel"]:::ask
+  MSG -- "Import" --> CM["commit_import()<br/>paid at = statement,<br/>logged at = now"]:::store
+  MSG -- "Review" --> UI["dashboard review table"]:::user --> CM
+
+  classDef user fill:#dbeafe,stroke:#2563eb,color:#0f172a
+  classDef core fill:#dcfce7,stroke:#16a34a,color:#0f172a
+  classDef ai fill:#ffedd5,stroke:#ea580c,color:#0f172a
+  classDef store fill:#fef9c3,stroke:#ca8a04,color:#0f172a
+  classDef ask fill:#fee2e2,stroke:#dc2626,color:#0f172a
+```
+
+In chat it looks like this:
+
+```text
+📄 revolut_statement_september.pdf · Revolut · 3 pages
+31 transactions · Sep 1 – Sep 30 · ✓ totals match the statement
+Importing 31: out €235.82 · in €0.00 · 4 transfers between your accounts
+Top: Groceries €137.55 · Transport €29.40 · Miscellaneous €18.99
+Review: https://…/app?tab=imports&import=1
+[Import 31] [Review] [Cancel]
+```
+
+What makes it trustworthy:
+
+- **Every page is read.** Up to 30 pages; text pages go to the text model, scanned pages and photos to the vision model.
+- **The numbers are checked in code.** When the statement has a running balance, each row's balance change decides money out vs in, whatever the model said. The sums are then compared with the statement's own "money out / money in" box: `✓ totals match`, or `⚠ doesn't match` and a nudge to review.
+- **Moving money between your own accounts isn't spending.** Rows naming the account holder ("To Jane Doe", a pocket, a savings vault, a top-up) become transfers.
+- **No double counting.** A row that matches something you already logged (same amount and currency, within 36 h) is flagged "already logged" and left unticked. Uploading the same statement twice flags every row.
+- **Two times.** Each imported transaction keeps the statement's date (and time, when printed) as *paid at*, and the moment you pressed Import as *logged at*. Rows without a time show a date only in review.
+- **Personal identifiers stay out of the prompt.** IBANs, card and account numbers (including half-masked ones like `416598******5186`) and e-mail addresses are masked before a page is sent.
+- **Reversible.** Every transaction keeps `import_id`. `undo` right after importing removes the whole import, and the dashboard has **Revert import**.
+
+Categories come from what you've used for that merchant before, then from the model's suggestion if it matches one of your categories well; anything left over goes to Miscellaneous (transfers stay uncategorized). Each imported transaction is tagged with the merchant and the bank.
 
 ## Importing v1 (`services/import_v1.py`)
 

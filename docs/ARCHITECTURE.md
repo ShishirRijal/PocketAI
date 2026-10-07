@@ -52,7 +52,7 @@ worker=N` works. Un-acked entries are reclaimed with `XAUTOCLAIM`.
 
 0. **Normalize** (`core/normalize.py`): NFKC, zero-width chars, smart quotes, email/phone signatures, Devanagari digits (२५० → 250). The stored raw message is untouched.
 
-1. **Media?** Photos go to the receipt (vision) stage and voice notes to transcription, then the text path. Always confirmed.
+1. **Media?** PDFs, screenshots and photos go to the document reader (every page, totals reconciled in code, then a staged import or a single receipt confirm); voice notes go to transcription, then the text path. Always confirmed.
 2. **Pending action?** Kinds are `confirm_add`, `confirm_category`, `confirm_duplicate`, `choose_target`, `confirm_delete`. A reply that isn't an answer ("how much this week?") clears the pending action and is handled fresh, so the bot never gets stuck in a question.
 3. **Deterministic command?** (`core/commands.py`): undo, edit/delete by number, show, budgets, recurring, export, categories, settings... No LLM, so these work during outages and when the cost cap is hit.
 4. **Intent** (LLM, fast chain), then one of:
@@ -85,6 +85,7 @@ Most messages never need a categorizer call.
 | 0.6 ≤ confidence < 0.85 | save, with "Not fully sure" |
 | otherwise | save, one-line receipt |
 | receipt photo / voice note | always ask |
+| statement / screenshot with several rows | staged import: Import N / Review / Cancel |
 
 Confidence is the *minimum* across stages (extract, categorize), not the product.
 

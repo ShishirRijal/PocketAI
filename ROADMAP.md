@@ -9,6 +9,9 @@
 
 ## Ideas
 
+- Revolut/Wise automatic sync: Wise has a personal API token; Revolut needs an open-banking aggregator (GoCardless Bank Account Data). Until then, the monthly statement PDF import covers it.
+- Per-row "this is mine/not mine" memory for imports, so a merchant you always switch to transfer stays a transfer next month.
+
 - Monthly PDF report.
 - Anomaly alerts beyond the per-category "unusually large" nudge (e.g. a merchant you've never used, a duplicate subscription).
 - Google sign-in for the dashboard instead of the admin token.

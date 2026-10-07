@@ -144,7 +144,7 @@ PocketAI/
 │   │
 │   ├── llm/                 everything that talks to a model
 │   │   ├── router.py        fallback chains, retries, quota skip, cost cap
-│   │   ├── stages.py        Pipeline: intent / extract / categorize / edit / delete / query / receipt / summarize
+│   │   ├── stages.py        Pipeline: intent / extract / categorize / edit / delete / query / summarize / read_document_page
 │   │   ├── schemas.py       pydantic models the LLM must fill (structured output)
 │   │   ├── guards.py        deterministic checks on LLM output (currency, amount)
 │   │   ├── quota.py         free-tier request counters
@@ -165,7 +165,8 @@ PocketAI/
 │   │   ├── budgets.py  recurring.py  lending.py  splits.py  goals.py  people.py  insights.py
 │   │   ├── digests.py       weekly + monthly recap
 │   │   ├── exports.py       CSV / JSON / QIF + signed download links
-│   │   ├── media.py         receipt photos (vision) + voice notes (transcription)
+│   │   ├── media.py         files from chat: statements/photos → documents.py, voice notes → transcription
+│   │   ├── documents.py     statement PDFs / screenshots → reconciled, reviewable imports
 │   │   ├── backups.py       sqlite backup + rotation + Azure Blob upload
 │   │   ├── scheduler.py     APScheduler jobs
 │   │   ├── import_v1.py     bring history over from the v1 Telegram bot

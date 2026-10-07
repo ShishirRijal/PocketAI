@@ -16,7 +16,8 @@ flowchart LR
   I -- EDIT --> E["edit resolver<br/>EditResolution"]:::ai
   I -- DELETE --> D["delete resolver<br/>DeleteResolution"]:::ai
   I -- QUERY --> Q["query planner<br/>QueryPlan"]:::ai
-  PH["photo"]:::user --> RC["receipt (vision)<br/>ReceiptExtraction"]:::ai
+  PDF["PDF page (text layer)"]:::user --> DOC["document<br/>DocumentExtraction"]:::ai
+  PH["photo / screenshot /<br/>scanned page"]:::user --> DI["document_image (vision)<br/>DocumentExtraction"]:::ai
   VN["voice note"]:::user --> TR["transcribe<br/>(whisper-style)"]:::ai --> T
   DG["weekly numbers"]:::core --> SU["summarize<br/>(digest wording only)"]:::ai
 
@@ -33,7 +34,7 @@ flowchart LR
 | edit | `Pipeline.resolve_edit` | `EditResolution{target_index, changes: [{field, value}], confidence}` | `prompts/edit.md` |
 | delete | `Pipeline.resolve_delete` | `DeleteResolution{target_indexes, confidence}` | `prompts/delete.md` |
 | query | `Pipeline.plan_query` | `QueryPlan` (see doc 3) | `prompts/query.md` |
-| receipt | `Pipeline.receipt` | `ReceiptExtraction{is_receipt, transaction}` | `prompts/receipt.md` |
+| document / document_image | `Pipeline.read_document_page` | `DocumentExtraction{kind, institution, account_holder, opening/closing balance, total money out/in, rows: [DocumentRow]}`; a row is date, time, description, amount, currency, direction, merchant, location, category_hint, balance_after, note, confidence | `prompts/document.md` |
 | summarize | `Pipeline.summarize` | `Summary{text}` | `prompts/summarize.md` |
 
 The schemas are deliberately **not** the database shape. `amount` is a float here and `amount_minor` an integer in the DB; the orchestrator maps one to the other. The DB never depends on what a model returns.
@@ -70,7 +71,7 @@ router:
   query:      { primary: openai/gpt-4o-mini, fallbacks: [gemini/gemini-3.8-flash, gemini/gemini-flash-lite-latest] }
   summarizer: { primary: openai/gpt-4o-mini, fallbacks: [gemini/gemini-flash-lite-latest] }
   vision:     { primary: openai/gpt-4o-mini, fallbacks: [gemini/gemini-3.8-flash] }
-purposes: { intent: fast, extract: extractor, categorize: extractor, edit: resolver, delete: resolver, query: query, receipt: vision, summarize: summarizer }
+purposes: { intent: fast, extract: extractor, categorize: extractor, edit: resolver, delete: resolver, query: query, summarize: summarizer, document: extractor, document_image: vision }
 quotas:   { gemini/gemini-3.8-flash: {rpm: 10, rpd: 250}, gemini/gemini-flash-lite-latest: {rpm: 15, rpd: 1000} }
 ```
 

@@ -60,7 +60,8 @@ sequenceDiagram
 | Tab | Endpoint(s) | Shows |
 |---|---|---|
 | **Overview** | `GET /api/v1/summary` | hero spend tile + income/net/count/per-day tiles with deltas vs the previous period; spending per day (≤ 62 days) or per week; by category; top merchants; by weekday; tags; last 12 months spending vs income; largest |
-| **Transactions** | `GET /api/v1/transactions` | sortable, paginated table (50/page); row → drawer with edit form, original message, version history, LLM calls; Export CSV |
+| **Transactions** | `GET /api/v1/transactions` | sortable, paginated table (50/page) with both **Paid at** and **Logged** times; row → drawer with edit form, original message, version history, LLM calls; Export CSV |
+| **Imports** | `GET/POST /api/v1/imports`, `/imports/{id}` | drop zone for PDFs and images, past imports with their ✓/⚠ check; the review screen: tiles (found, selected, out, in, already logged), an editable table (tick, paid at, merchant, location, category, type, amount; every change saves immediately), "only rows that need a look", select all/none/skip duplicates, a sticky bar with live totals and **Import N**; afterwards **View transactions** or **Revert import** |
 | **Plans** | `GET /api/v1/plans`, `/categories` | budget meters (+ set/remove), lending balances, goals, recurring (+ stop), category rename/merge/archive |
 | **System** | `GET /api/v1/system` | LLM spend per day (30 d), calls, failure rate, cost per message, model chains in use, message outcomes, recent raw messages |
 
@@ -127,7 +128,7 @@ All under `/api/v1`, cookie or bearer auth:
 |---|---|---|
 | GET | `/me` | base currency, timezone |
 | GET | `/summary` | everything for Overview (filters apply) |
-| GET | `/transactions` | + `sort` (occurred_at, amount, merchant, category, created_at), `order`, `page`, `page_size` |
+| GET | `/transactions` | + `import` (only rows from that import), `sort` (occurred_at, amount, merchant, category, created_at), `order`, `page`, `page_size` |
 | GET | `/transactions/{id}` | detail + versions + raw text + LLM calls |
 | PATCH | `/transactions/{id}` | amount, currency, category_id, merchant, note, occurred_at, direction, tags |
 | DELETE | `/transactions/{id}` | soft delete |
@@ -140,5 +141,10 @@ All under `/api/v1`, cookie or bearer auth:
 | DELETE | `/recurring/{id}` | stop a rule |
 | GET / POST / PATCH | `/categories`, `/categories/{id}` | list with counts; create; rename / merge_into / archive |
 | GET | `/system` | LLM cost and health |
+| GET / POST | `/imports` | list; upload a PDF or image (multipart `file`), read in the background |
+| GET | `/imports/{id}` | the import with its rows (poll while `status` is `processing`) |
+| PATCH | `/imports/{id}/rows/{row_id}` | include, category_id, direction, merchant, location, note, occurred_at, amount |
+| POST | `/imports/{id}/include` | `{"include": false, "only_duplicates": true}` and friends |
+| POST | `/imports/{id}/commit` · `/cancel` · `/revert` | create the transactions · discard · soft-delete what it created |
 
 Next: [9. Operations](09-operations.md)
